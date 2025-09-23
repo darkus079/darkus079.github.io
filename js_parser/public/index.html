@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Парсер kad.arbitr.ru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #28a745;
+            display: none;
+        }
+
+        .status-panel.parsing {
+            border-left-color: #ffc107;
+            background: #fff8e1;
+        }
+
+        .status-panel.error {
+            border-left-color: #dc3545;
+            background: #ffebee;
+        }
+
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .status-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .example {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .example-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+
+        .example-text {
+            color: #1976d2;
+            font-size: 14px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .files-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .files-link:hover {
+            background: #e0e0e0;
+        }
+
+        .result-panel {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .result-panel.success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .result-panel.error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .result-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .result-message {
+            font-size: 16px;
+            opacity: 0.8;
+        }
+
+        .files-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #28a745;
+        }
+
+        .file-name {
+            flex-grow: 1;
+            font-weight: 500;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .btn-download {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-download:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 10px rgba(40, 167, 69, 0.3);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            .title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Парсер kad.arbitr.ru</h1>
+        <p class="subtitle">Скачивание PDF файлов из арбитражных дел</p>
+
+        <form id="parseForm">
+            <div class="form-group">
+                <label for="case_number" class="form-label">Номер дела:</label>
+                <input 
+                    type="text" 
+                    id="case_number" 
+                    name="case_number" 
+                    class="form-input"
+                    placeholder="Например: А81-8566/2025"
+                    required
+                >
+            </div>
+            
+            <button 
+                type="submit" 
+                class="btn-primary"
+                id="submitBtn"
+            >
+                🔍 Найти и скачать файлы
+            </button>
+        </form>
+
+        <div class="status-panel" id="statusPanel">
+            <div class="status-title">📊 Статус парсинга</div>
+            <div class="status-text" id="statusText">
+                <strong>Дело:</strong> <span id="currentCase"></span><br>
+                <strong>Прогресс:</strong> <span id="progress"></span>
+            </div>
+        </div>
+
+        <div class="result-panel" id="resultPanel">
+            <span class="result-icon" id="resultIcon"></span>
+            <div class="result-title" id="resultTitle"></div>
+            <div class="result-message" id="resultMessage"></div>
+            <ul class="files-list" id="filesList"></ul>
+        </div>
+
+        <div class="example">
+            <div class="example-title">📝 Пример номера дела:</div>
+            <div class="example-text">А81-8566/2025, А40-123456/2024, А50-98765/2025</div>
+        </div>
+
+        <a href="/files" class="files-link">📁 Посмотреть скачанные файлы</a>
+        <a href="/diagnostics" class="files-link">🔧 Диагностика проблем</a>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Подключение к WebSocket
+        const socket = io();
+        
+        // Элементы DOM
+        const form = document.getElementById('parseForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const caseInput = document.getElementById('case_number');
+        const statusPanel = document.getElementById('statusPanel');
+        const statusText = document.getElementById('statusText');
+        const currentCaseSpan = document.getElementById('currentCase');
+        const progressSpan = document.getElementById('progress');
+        const resultPanel = document.getElementById('resultPanel');
+        const resultIcon = document.getElementById('resultIcon');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+        const filesList = document.getElementById('filesList');
+
+        // Обработка формы
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const caseNumber = caseInput.value.trim();
+            if (!caseNumber) {
+                alert('Пожалуйста, введите номер дела');
+                return;
+            }
+            
+            // Блокируем форму
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Начинаем парсинг...';
+            
+            // Скрываем результат
+            resultPanel.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ case_number: caseNumber })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult(true, result.message, result.files, result.case_number);
+                } else {
+                    showResult(false, result.message, [], result.case_number);
+                }
+                
+            } catch (error) {
+                console.error('Ошибка парсинга:', error);
+                showResult(false, 'Ошибка соединения с сервером', [], caseNumber);
+            } finally {
+                // Разблокируем форму
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🔍 Найти и скачать файлы';
+            }
+        });
+
+        // Показ результата
+        function showResult(success, message, files, caseNumber) {
+            resultPanel.style.display = 'block';
+            resultPanel.className = `result-panel ${success ? 'success' : 'error'}`;
+            
+            resultIcon.textContent = success ? '✅' : '❌';
+            resultTitle.textContent = success ? 'Парсинг выполнен успешно!' : 'Ошибка парсинга';
+            resultMessage.textContent = message;
+            
+            // Очищаем список файлов
+            filesList.innerHTML = '';
+            
+            if (files && files.length > 0) {
+                files.forEach(fileName => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'file-item';
+                    listItem.innerHTML = `
+                        <div class="file-name">📄 ${fileName}</div>
+                        <a href="/api/download/${fileName}" class="btn-download" download>
+                            ⬇️ Скачать
+                        </a>
+                    `;
+                    filesList.appendChild(listItem);
+                });
+            }
+        }
+
+        // WebSocket события
+        socket.on('parsing_started', (data) => {
+            statusPanel.style.display = 'block';
+            statusPanel.className = 'status-panel parsing';
+            currentCaseSpan.textContent = data.case_number;
+            progressSpan.textContent = data.progress;
+        });
+
+        socket.on('parsing_progress', (data) => {
+            progressSpan.textContent = data.progress;
+        });
+
+        socket.on('parsing_completed', (data) => {
+            statusPanel.style.display = 'none';
+            showResult(true, data.message, data.files, data.case_number);
+        });
+
+        socket.on('parsing_error', (data) => {
+            statusPanel.style.display = 'none';
+            showResult(false, data.message, data.files, data.case_number);
+        });
+
+        socket.on('status_update', (data) => {
+            if (data.is_parsing) {
+                statusPanel.style.display = 'block';
+                statusPanel.className = 'status-panel parsing';
+                currentCaseSpan.textContent = data.current_case;
+                progressSpan.textContent = data.progress;
+            } else {
+                statusPanel.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "name": "kad-arbitr-parser-gh-pages",
+  "version": "1.0.0",
+  "description": "Клиентский парсер kad.arbitr.ru для GitHub Pages",
+  "main": "index.html",
+  "homepage": "https://darkus079.github.io/kad-arbitr-parser",
+  "scripts": {
+    "start": "npx http-server . -p 3000 -o",
+    "build": "echo 'No build process needed for static site'",
+    "dev": "npx http-server . -p 3000 -o -c-1",
+    "deploy": "gh-pages -d .",
+    "predeploy": "npm run build"
+  },
+  "keywords": [
+    "parser",
+    "pdf",
+    "arbitr",
+    "client-side",
+    "browser",
+    "github-pages"
+  ],
+  "author": "darkus079",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "gh-pages": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/darkus079/kad-arbitr-parser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/darkus079/kad-arbitr-parser/issues"
+  }
+}
