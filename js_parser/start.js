@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs-extra');
 
 console.log('🚀 Запуск парсера kad.arbitr.ru (JavaScript версия)');
-console.log('=' * 60);
+console.log('='.repeat(60));
 
 // Проверяем наличие Node.js
 const nodeVersion = process.version;
@@ -47,7 +47,7 @@ try {
 console.log('🌟 Запуск веб-сервера...');
 console.log(`📱 Веб-интерфейс: http://localhost:3000`);
 console.log(`⏹️  Для остановки: Ctrl+C`);
-console.log('=' * 60);
+console.log('='.repeat(60));
 
 // Небольшая задержка
 setTimeout(() => {
