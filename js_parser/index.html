@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Парсер kad.arbitr.ru</title>
+    <title>Парсер kad.arbitr.ru - GitHub Pages</title>
     <style>
         * {
             box-sizing: border-box;
@@ -49,202 +49,220 @@
             text-align: left;
         }
 
-        .form-label {
+        .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
             font-weight: 500;
+            color: #333;
         }
 
-        .form-input {
+        .form-group input {
             width: 100%;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
             font-size: 16px;
             transition: border-color 0.3s ease;
         }
 
-        .form-input:focus {
+        .form-group input:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .btn-primary {
+        .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 15px 40px;
-            border-radius: 12px;
+            padding: 12px 30px;
+            border-radius: 8px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
-            width: 100%;
+            margin: 10px;
         }
 
-        .btn-primary:hover {
+        .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
 
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.6;
+        .btn:disabled {
+            background: #ccc;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
-        .status-panel {
-            margin-top: 30px;
-            padding: 20px;
+        .progress {
+            margin: 20px 0;
+            padding: 15px;
             background: #f8f9fa;
-            border-radius: 12px;
-            border-left: 4px solid #28a745;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            text-align: left;
             display: none;
         }
 
-        .status-panel.parsing {
-            border-left-color: #ffc107;
-            background: #fff8e1;
-        }
-
-        .status-panel.error {
-            border-left-color: #dc3545;
-            background: #ffebee;
-        }
-
-        .status-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
-        }
-
-        .status-text {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .result-panel {
-            margin-top: 20px;
-            padding: 20px;
-            border-radius: 12px;
-            display: none;
-        }
-
-        .result-panel.success {
-            background: #d4edda;
-            border: 2px solid #c3e6cb;
-            color: #155724;
-        }
-
-        .result-panel.error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-
-        .result-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
+        .progress.show {
             display: block;
         }
 
+        .progress-text {
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e5e9;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .result {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: left;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .result.error {
+            border-left: 4px solid #dc3545;
+        }
+
         .result-title {
-            font-size: 20px;
             font-weight: 600;
             margin-bottom: 10px;
         }
 
-        .result-message {
-            font-size: 16px;
-            opacity: 0.8;
+        .result.success .result-title {
+            color: #28a745;
         }
 
-        .files-section {
-            margin-top: 20px;
-            text-align: left;
-        }
-
-        .files-title {
-            color: #333;
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
+        .result.error .result-title {
+            color: #dc3545;
         }
 
         .files-list {
-            list-style: none;
+            margin-top: 15px;
         }
 
         .file-item {
+            padding: 8px 12px;
+            background: white;
+            border-radius: 4px;
+            margin: 5px 0;
+            border: 1px solid #e1e5e9;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 15px 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            border-left: 4px solid #28a745;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .file-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            align-items: center;
         }
 
         .file-name {
-            flex-grow: 1;
-            font-weight: 500;
             color: #333;
-            word-break: break-all;
-        }
-
-        .btn-download {
-            background: #28a745;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 8px;
-            text-decoration: none;
             font-weight: 500;
-            transition: all 0.2s ease;
+        }
+
+        .download-btn {
+            background: #667eea;
+            color: white;
             border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
         }
 
-        .btn-download:hover {
-            background: #218838;
-            transform: translateY(-1px);
-            box-shadow: 0 5px 10px rgba(40, 167, 69, 0.3);
+        .download-btn:hover {
+            background: #5a6fd8;
         }
 
-        .example {
-            margin-top: 20px;
+        .status {
+            margin: 20px 0;
             padding: 15px;
-            background: #e3f2fd;
+            border-radius: 8px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .github-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
             border-radius: 8px;
             text-align: left;
         }
 
-        .example-title {
-            font-weight: 600;
-            color: #1976d2;
-            margin-bottom: 5px;
+        .github-info h3 {
+            color: #333;
+            margin-bottom: 10px;
         }
 
-        .example-text {
-            color: #1976d2;
-            font-size: 14px;
+        .github-info p {
+            color: #666;
+            margin-bottom: 10px;
+            line-height: 1.5;
         }
 
-        .spinner {
+        .github-info code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .loading {
             display: inline-block;
             width: 20px;
             height: 20px;
@@ -259,121 +277,197 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            border-radius: 8px;
-            color: white;
-            font-weight: 500;
-            z-index: 1000;
-            transform: translateX(400px);
-            transition: transform 0.3s ease;
-        }
-
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.success {
-            background: #28a745;
-        }
-
-        .notification.error {
-            background: #dc3545;
-        }
-
-        .log-panel {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            text-align: left;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 12px;
-            display: none;
-        }
-
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 2px 0;
-        }
-
-        .log-entry.error {
-            color: #dc3545;
-        }
-
-        .log-entry.success {
-            color: #28a745;
-        }
-
-        .log-entry.info {
-            color: #007bff;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="title">Парсер kad.arbitr.ru</h1>
-        <p class="subtitle">Скачивание PDF файлов из арбитражных дел</p>
+        <h1 class="title">🚀 Парсер kad.arbitr.ru</h1>
+        <p class="subtitle">Автоматическое скачивание документов по номеру дела</p>
 
         <form id="parseForm">
             <div class="form-group">
-                <label for="case_number" class="form-label">Номер дела:</label>
-                <input 
-                    type="text" 
-                    id="case_number" 
-                    name="case_number" 
-                    class="form-input"
-                    placeholder="Например: А81-8566/2025"
-                    required
-                >
+                <label for="caseNumber">Номер дела:</label>
+                <input type="text" id="caseNumber" name="caseNumber" 
+                       placeholder="Например: А84-12036/2023" required>
             </div>
             
-            <button 
-                type="submit" 
-                class="btn-primary"
-                id="submitBtn"
-            >
-                🔍 Найти и скачать файлы
+            <button type="submit" class="btn" id="parseBtn">
+                <span id="btnText">Начать парсинг</span>
+                <span id="btnLoading" class="loading" style="display: none;"></span>
+            </button>
+            
+            <button type="button" class="btn" id="clearBtn" style="background: #6c757d;">
+                Очистить результаты
             </button>
         </form>
 
-        <div class="status-panel" id="statusPanel">
-            <div class="status-title">📊 Статус парсинга</div>
-            <div class="status-text" id="statusText">
-                <strong>Дело:</strong> <span id="currentCase"></span><br>
-                <strong>Прогресс:</strong> <span id="progress"></span>
+        <div id="status" class="status"></div>
+
+        <div id="progress" class="progress">
+            <div class="progress-text" id="progressText">Подготовка...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
             </div>
         </div>
 
-        <div class="result-panel" id="resultPanel">
-            <span class="result-icon" id="resultIcon"></span>
-            <div class="result-title" id="resultTitle"></div>
-            <div class="result-message" id="resultMessage"></div>
-            <div class="files-section" id="filesSection" style="display: none;">
-                <h3 class="files-title">📁 Скачанные файлы</h3>
-                <ul class="files-list" id="filesList"></ul>
-            </div>
+        <div id="result" class="result">
+            <div class="result-title" id="resultTitle">Результат</div>
+            <div id="resultMessage"></div>
+            <div class="files-list" id="filesList"></div>
         </div>
 
-        <div class="log-panel" id="logPanel">
-            <div class="log-entries" id="logEntries"></div>
-        </div>
-
-        <div class="example">
-            <div class="example-title">📝 Пример номера дела:</div>
-            <div class="example-text">А81-8566/2025, А40-123456/2024, А50-98765/2025</div>
+        <div class="github-info">
+            <h3>ℹ️ Информация о работе на GitHub Pages</h3>
+            <p>Этот парсер работает полностью в браузере без серверной части.</p>
+            <p><strong>Особенности:</strong></p>
+            <ul style="margin-left: 20px; color: #666;">
+                <li>Использует CORS прокси для обхода ограничений браузера</li>
+                <li>Скачивает файлы напрямую в браузер</li>
+                <li>Не требует установки дополнительного ПО</li>
+                <li>Работает на любом устройстве с современным браузером</li>
+            </ul>
+            <p><strong>Ограничения:</strong></p>
+            <ul style="margin-left: 20px; color: #666;">
+                <li>Некоторые сайты могут блокировать CORS запросы</li>
+                <li>Скорость работы зависит от интернет-соединения</li>
+                <li>Не все документы могут быть доступны для скачивания</li>
+            </ul>
         </div>
     </div>
 
-    <div class="notification" id="notification"></div>
+    <!-- Подключаем клиентский парсер -->
+    <script src="js/client-parser.js"></script>
+    
+    <script>
+        // Инициализация парсера
+        const parser = new ClientKadArbitrParser();
+        
+        // Элементы DOM
+        const parseForm = document.getElementById('parseForm');
+        const parseBtn = document.getElementById('parseBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoading = document.getElementById('btnLoading');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const progressText = document.getElementById('progressText');
+        const progressFill = document.getElementById('progressFill');
+        const result = document.getElementById('result');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+        const filesList = document.getElementById('filesList');
 
-    <script src="js/parser.js"></script>
-    <script src="js/app.js"></script>
+        // Обработка отправки формы
+        parseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const caseNumber = document.getElementById('caseNumber').value.trim();
+            if (!caseNumber) {
+                showStatus('Введите номер дела', 'error');
+                return;
+            }
+
+            await startParsing(caseNumber);
+        });
+
+        // Обработка очистки результатов
+        clearBtn.addEventListener('click', () => {
+            clearResults();
+        });
+
+        // Запуск парсинга
+        async function startParsing(caseNumber) {
+            try {
+                // Блокируем кнопку
+                setButtonState(true);
+                clearResults();
+                showStatus('Начинаем парсинг...', 'info');
+                showProgress(true);
+
+                // Запускаем парсинг
+                const downloadedFiles = await parser.parseCase(caseNumber, (progress) => {
+                    updateProgress(progress);
+                });
+
+                // Показываем результат
+                showResult(true, `Успешно обработано ${downloadedFiles.length} файлов`, downloadedFiles);
+                showStatus('Парсинг завершен успешно!', 'success');
+
+            } catch (error) {
+                console.error('Ошибка парсинга:', error);
+                showResult(false, `Ошибка парсинга: ${error.message}`, []);
+                showStatus('Произошла ошибка при парсинге', 'error');
+            } finally {
+                setButtonState(false);
+                showProgress(false);
+            }
+        }
+
+        // Обновление прогресса
+        function updateProgress(text) {
+            progressText.textContent = text;
+            console.log(`📊 ${text}`);
+        }
+
+        // Показ прогресса
+        function showProgress(show) {
+            if (show) {
+                progress.classList.add('show');
+                progressFill.style.width = '0%';
+            } else {
+                progress.classList.remove('show');
+            }
+        }
+
+        // Показ статуса
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status show ${type}`;
+        }
+
+        // Показ результата
+        function showResult(success, message, files) {
+            resultTitle.textContent = success ? '✅ Успешно' : '❌ Ошибка';
+            resultMessage.textContent = message;
+            result.className = `result show ${success ? 'success' : 'error'}`;
+
+            // Показываем список файлов
+            if (files && files.length > 0) {
+                filesList.innerHTML = files.map(file => `
+                    <div class="file-item">
+                        <span class="file-name">${file}</span>
+                        <span class="download-btn">Скачан</span>
+                    </div>
+                `).join('');
+            } else {
+                filesList.innerHTML = '';
+            }
+        }
+
+        // Очистка результатов
+        function clearResults() {
+            result.classList.remove('show');
+            status.classList.remove('show');
+            progress.classList.remove('show');
+            filesList.innerHTML = '';
+            parser.clearFiles();
+        }
+
+        // Состояние кнопки
+        function setButtonState(loading) {
+            parseBtn.disabled = loading;
+            if (loading) {
+                btnText.style.display = 'none';
+                btnLoading.style.display = 'inline-block';
+            } else {
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+            }
+        }
+
+        // Инициализация
+        console.log('🚀 Парсер kad.arbitr.ru загружен');
+        console.log('📱 Режим: GitHub Pages (клиентский)');
+    </script>
 </body>
 </html>

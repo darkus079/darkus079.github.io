@@ -5,10 +5,10 @@
   "main": "server.js",
   "homepage": "https://darkus079.github.io/kad-arbitr-parser",
   "scripts": {
-    "start": "node start.js",
+    "start": "npx http-server . -p 3000 -o",
     "server": "node server.js",
     "build": "echo 'No build process needed for static site'",
-    "dev": "node start.js",
+    "dev": "npx http-server . -p 3000 -o -c-1",
     "deploy": "gh-pages -d .",
     "predeploy": "npm run build"
   },
