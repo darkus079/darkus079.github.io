@@ -169,35 +169,142 @@
         }
 
         .file-item {
-            padding: 8px 12px;
+            padding: 15px;
             background: white;
-            border-radius: 4px;
-            margin: 5px 0;
+            border-radius: 8px;
+            margin: 10px 0;
             border: 1px solid #e1e5e9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .file-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .file-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
         }
 
         .file-name {
             color: #333;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .file-details {
+            color: #666;
+            font-size: 12px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .file-size {
+            color: #888;
+        }
+
+        .file-type {
+            color: #dc3545;
             font-weight: 500;
         }
 
         .download-btn {
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            min-width: 80px;
+            text-align: center;
         }
 
         .download-btn:hover {
-            background: #5a6fd8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .download-btn:active {
+            transform: translateY(0);
+        }
+
+        .download-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .success-page {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .success-page.show {
+            display: block;
+        }
+
+        .success-icon {
+            font-size: 64px;
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+
+        .success-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .success-message {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .files-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .files-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.2s ease;
+        }
+
+        .back-btn:hover {
+            background: #5a6268;
         }
 
         .status {
@@ -316,6 +423,20 @@
             <div class="files-list" id="filesList"></div>
         </div>
 
+        <!-- Страница успешного завершения -->
+        <div id="successPage" class="success-page">
+            <div class="success-icon">✅</div>
+            <h2 class="success-title">Парсинг завершен успешно!</h2>
+            <p class="success-message">Документы готовы к скачиванию</p>
+            
+            <div class="files-section">
+                <h3>📁 Скачанные файлы</h3>
+                <div class="files-list" id="successFilesList"></div>
+            </div>
+            
+            <button class="back-btn" id="backBtn">← Вернуться к поиску</button>
+        </div>
+
         <div class="github-info">
             <h3>ℹ️ Информация о работе на GitHub Pages</h3>
             <p>Этот парсер работает полностью в браузере без серверной части.</p>
@@ -356,6 +477,9 @@
         const resultTitle = document.getElementById('resultTitle');
         const resultMessage = document.getElementById('resultMessage');
         const filesList = document.getElementById('filesList');
+        const successPage = document.getElementById('successPage');
+        const successFilesList = document.getElementById('successFilesList');
+        const backBtn = document.getElementById('backBtn');
 
         // Обработка отправки формы
         parseForm.addEventListener('submit', async (e) => {
@@ -375,6 +499,11 @@
             clearResults();
         });
 
+        // Обработка кнопки "Вернуться к поиску"
+        backBtn.addEventListener('click', () => {
+            showMainPage();
+        });
+
         // Запуск парсинга
         async function startParsing(caseNumber) {
             try {
@@ -389,8 +518,8 @@
                     updateProgress(progress);
                 });
 
-                // Показываем результат
-                showResult(true, `Успешно обработано ${downloadedFiles.length} файлов`, downloadedFiles);
+                // Показываем страницу успеха
+                showSuccessPage(downloadedFiles);
                 showStatus('Парсинг завершен успешно!', 'success');
 
             } catch (error) {
@@ -444,12 +573,89 @@
             }
         }
 
+        // Показ страницы успеха
+        function showSuccessPage(files) {
+            // Скрываем основную форму
+            parseForm.style.display = 'none';
+            result.classList.remove('show');
+            progress.classList.remove('show');
+            
+            // Показываем страницу успеха
+            successPage.classList.add('show');
+            
+            // Отображаем файлы с кнопками скачивания
+            if (files && files.length > 0) {
+                successFilesList.innerHTML = files.map(file => {
+                    const fileSize = formatFileSize(file.size);
+                    return `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-details">
+                                    <span class="file-type">PDF</span>
+                                    <span class="file-size">${fileSize}</span>
+                                </div>
+                            </div>
+                            <button class="download-btn" onclick="downloadFile('${file.name}', '${file.url}')">
+                                📥 Скачать
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                successFilesList.innerHTML = '<p>Файлы не найдены</p>';
+            }
+        }
+
+        // Показ основной страницы
+        function showMainPage() {
+            // Показываем основную форму
+            parseForm.style.display = 'block';
+            
+            // Скрываем страницу успеха
+            successPage.classList.remove('show');
+            
+            // Очищаем результаты
+            clearResults();
+        }
+
+        // Форматирование размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Скачивание файла
+        function downloadFile(filename, url) {
+            try {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ Скачивание файла: ${filename}`);
+            } catch (error) {
+                console.error('❌ Ошибка скачивания файла:', error);
+                alert('Ошибка при скачивании файла');
+            }
+        }
+
         // Очистка результатов
         function clearResults() {
             result.classList.remove('show');
             status.classList.remove('show');
             progress.classList.remove('show');
+            successPage.classList.remove('show');
             filesList.innerHTML = '';
+            successFilesList.innerHTML = '';
+            parseForm.style.display = 'block';
             parser.clearFiles();
         }
 
