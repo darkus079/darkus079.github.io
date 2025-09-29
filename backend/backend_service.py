@@ -244,6 +244,7 @@ async def process_parsing_request(case_number: str):
         })
         
         logger.info(f"🔄 Начало парсинга дела: {case_number}")
+        logger.info(f"🔍 Поиск дела в базе kad.arbitr.ru...")
         
         # Выполняем парсинг в отдельном потоке
         loop = asyncio.get_event_loop()
@@ -252,6 +253,10 @@ async def process_parsing_request(case_number: str):
             parsing_status["progress"] = progress_text
             logger.info(f"📊 {progress_text}")
         
+        # Добавляем дополнительное логирование перед парсингом
+        logger.info(f"🌐 Открытие браузера для парсинга...")
+        logger.info(f"📋 Переход на сайт kad.arbitr.ru...")
+        
         downloaded_files = await loop.run_in_executor(
             None, 
             parser.parse_case, 
@@ -259,6 +264,17 @@ async def process_parsing_request(case_number: str):
         )
         
         processing_time = time.time() - start_time
+        
+        # Детальное логирование результата
+        if downloaded_files:
+            logger.info(f"📁 Найдено документов: {len(downloaded_files)}")
+            for i, file_path in enumerate(downloaded_files, 1):
+                file_name = os.path.basename(file_path)
+                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                file_size_mb = file_size / (1024 * 1024)
+                logger.info(f"📄 Документ {i}: {file_name} ({file_size_mb:.2f} MB)")
+        else:
+            logger.warning(f"⚠️ Документы не найдены для дела: {case_number}")
         
         # Обновляем статус
         parsing_status.update({
@@ -284,9 +300,17 @@ async def process_parsing_request(case_number: str):
             parsing_history.pop(0)
         
         logger.info(f"✅ Парсинг завершен: {len(downloaded_files)} файлов за {processing_time:.2f}с")
+        if len(downloaded_files) > 0:
+            logger.info(f"⏱️ Средняя скорость: {len(downloaded_files)/processing_time:.2f} файлов/сек")
+        logger.info(f"💾 Файлы сохранены в папку: files/")
         
     except Exception as e:
         processing_time = time.time() - start_time
+        
+        # Детальное логирование ошибки
+        logger.error(f"❌ Ошибка парсинга дела {case_number}: {e}")
+        logger.error(f"🔍 Тип ошибки: {type(e).__name__}")
+        logger.error(f"⏱️ Время до ошибки: {processing_time:.2f}с")
         
         # Обновляем статус при ошибке
         parsing_status.update({
@@ -311,7 +335,7 @@ async def process_parsing_request(case_number: str):
         if len(parsing_history) > max_history:
             parsing_history.pop(0)
         
-        logger.error(f"❌ Ошибка парсинга {case_number}: {e}")
+        logger.error(f"📝 Ошибка записана в историю парсинга")
 
 # API эндпоинты
 
