@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Диагностика - kad.arbitr.ru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .diagnostic-section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 4px solid #007bff;
+        }
+
+        .diagnostic-section.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .diagnostic-section.warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .diagnostic-section.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title .icon {
+            margin-right: 10px;
+            font-size: 24px;
+        }
+
+        .diagnostic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .diagnostic-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-label {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .item-value {
+            color: #666;
+            font-family: monospace;
+            background: rgba(0,0,0,0.05);
+            padding: 4px 8px;
+            border-radius: 4px;
+            max-width: 60%;
+            word-break: break-all;
+        }
+
+        .item-value.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .item-value.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .item-value.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .path-list {
+            list-style: none;
+            margin-top: 10px;
+        }
+
+        .path-list li {
+            background: rgba(0,0,0,0.05);
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .actions {
+            text-align: center;
+            padding: 30px 0;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-block;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-badge.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-badge.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .recommendations {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid #1976d2;
+        }
+
+        .recommendations h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+
+        .recommendations ul {
+            color: #1976d2;
+            padding-left: 20px;
+        }
+
+        .recommendations li {
+            margin: 8px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .title {
+                font-size: 24px;
+            }
+            
+            .diagnostic-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .item-value {
+                max-width: 100%;
+                margin-top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🔧 Диагностика системы</h1>
+            <p class="subtitle">Проверка состояния парсера и зависимостей</p>
+        </div>
+
+        <!-- Статус WebDriver -->
+        <div class="diagnostic-section {% if diagnostics.driver_status == 'Инициализирован' %}success{% else %}error{% endif %}">
+            <h2 class="section-title">
+                <span class="icon">🚗</span>
+                Статус WebDriver
+            </h2>
+            <div class="diagnostic-item">
+                <span class="item-label">Текущий статус:</span>
+                <span class="item-value {% if diagnostics.driver_status == 'Инициализирован' %}success{% else %}error{% endif %}">
+                    {{ diagnostics.driver_status }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Python информация -->
+        <div class="diagnostic-section success">
+            <h2 class="section-title">
+                <span class="icon">🐍</span>
+                Python окружение
+            </h2>
+            <div class="diagnostic-item">
+                <span class="item-label">Версия Python:</span>
+                <span class="item-value success">{{ diagnostics.python_version.split()[0] }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="item-label">Selenium:</span>
+                <span class="item-value {% if diagnostics.selenium_version != 'Не найден' %}success{% else %}error{% endif %}">
+                    {{ diagnostics.selenium_version }}
+                </span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="item-label">undetected-chromedriver:</span>
+                <span class="status-badge {% if diagnostics.undetected_available %}success{% else %}warning{% endif %}">
+                    {% if diagnostics.undetected_available %}Доступен{% else %}Не установлен{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Chrome браузер -->
+        <div class="diagnostic-section {% if diagnostics.chrome_paths %}success{% else %}warning{% endif %}">
+            <h2 class="section-title">
+                <span class="icon">🌐</span>
+                Google Chrome
+            </h2>
+            {% if diagnostics.chrome_paths %}
+                <div class="diagnostic-item">
+                    <span class="item-label">Найденные установки Chrome:</span>
+                </div>
+                <ul class="path-list">
+                    {% for path in diagnostics.chrome_paths %}
+                    <li>{{ path }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="diagnostic-item">
+                    <span class="item-label">Статус:</span>
+                    <span class="item-value warning">Chrome не найден в PATH</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- WebDriverManager кэш -->
+        <div class="diagnostic-section">
+            <h2 class="section-title">
+                <span class="icon">📦</span>
+                WebDriverManager кэш
+            </h2>
+            {% if diagnostics.webdriver_manager_cache %}
+                <div class="diagnostic-item">
+                    <span class="item-label">Найденные файлы chromedriver:</span>
+                </div>
+                <ul class="path-list">
+                    {% for path in diagnostics.webdriver_manager_cache %}
+                    <li>{{ path }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="diagnostic-item">
+                    <span class="item-label">Статус:</span>
+                    <span class="item-value">Кэш пуст или не найден</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Рекомендации -->
+        {% if diagnostics.driver_status != 'Инициализирован' or not diagnostics.undetected_available %}
+        <div class="recommendations">
+            <h3>💡 Рекомендации для исправления проблем:</h3>
+            <ul>
+                {% if not diagnostics.undetected_available %}
+                <li>Установите <code>undetected-chromedriver</code>: <code>pip install undetected-chromedriver</code></li>
+                {% endif %}
+                
+                {% if not diagnostics.chrome_paths %}
+                <li>Установите Google Chrome с официального сайта</li>
+                <li>Убедитесь что Chrome добавлен в PATH системы</li>
+                {% endif %}
+                
+                {% if diagnostics.webdriver_manager_cache %}
+                <li>Попробуйте очистить кэш WebDriverManager (кнопка ниже)</li>
+                {% endif %}
+                
+                <li>Перезапустите парсер от имени администратора</li>
+                <li>Обновите Chrome до последней версии</li>
+                <li>Переинициализируйте WebDriver (кнопка ниже)</li>
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>Переинициализация WebDriver...</span>
+        </div>
+
+        <div class="actions">
+            {% if diagnostics.driver_status != 'Инициализирован' %}
+            <button class="btn btn-success" onclick="reinitDriver()" id="reinitBtn">
+                🔄 Переинициализировать WebDriver
+            </button>
+            {% endif %}
+            
+            {% if diagnostics.webdriver_manager_cache %}
+            <button class="btn btn-warning" onclick="clearCache()">
+                🗑️ Очистить кэш WebDriverManager
+            </button>
+            {% endif %}
+            
+            <a href="/diagnostics" class="btn btn-primary">🔄 Обновить диагностику</a>
+            <a href="/" class="btn btn-secondary">🏠 На главную</a>
+        </div>
+    </div>
+
+    <script>
+        async function reinitDriver() {
+            const btn = document.getElementById('reinitBtn');
+            const loading = document.getElementById('loading');
+            
+            btn.disabled = true;
+            btn.style.display = 'none';
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/reinit-driver');
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ WebDriver успешно переинициализирован!');
+                    location.reload();
+                } else {
+                    alert('❌ Ошибка переинициализации: ' + data.message);
+                }
+            } catch (error) {
+                alert('❌ Сетевая ошибка: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.style.display = 'inline-block';
+                loading.style.display = 'none';
+            }
+        }
+        
+        async function clearCache() {
+            if (!confirm('Вы уверены, что хотите очистить кэш WebDriverManager?')) {
+                return;
+            }
+            
+            alert('🔧 Функция очистки кэша будет добавлена в следующем обновлении');
+        }
+    </script>
+</body>
+</html>

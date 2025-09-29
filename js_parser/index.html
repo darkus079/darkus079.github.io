@@ -307,6 +307,197 @@
             background: #5a6268;
         }
 
+        .logs-container {
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e1e5e9;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .logs-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .clear-logs-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .clear-logs-btn:hover {
+            background: #c82333;
+        }
+
+        .logs-content {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+        }
+
+        .log-timestamp {
+            color: #666;
+            margin-right: 8px;
+            font-size: 10px;
+            min-width: 80px;
+        }
+
+        .log-message {
+            flex: 1;
+        }
+
+        .log-details {
+            color: #666;
+            font-style: italic;
+            margin-left: 8px;
+        }
+
+        .log-entry.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .log-entry.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .log-entry.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .log-entry.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .logs-toggle {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .logs-toggle:hover {
+            background: #5a6268;
+        }
+
+        .logs-container.collapsed {
+            max-height: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .error-pages-container {
+            margin: 20px 0;
+            background: #fff3cd;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #ffeaa7;
+            display: none;
+        }
+
+        .error-pages-container.show {
+            display: block;
+        }
+
+        .error-pages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .error-pages-title {
+            font-weight: 600;
+            color: #856404;
+            font-size: 16px;
+        }
+
+        .error-page-item {
+            background: white;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .error-page-info {
+            flex: 1;
+        }
+
+        .error-page-filename {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .error-page-details {
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .download-error-btn {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .download-error-btn:hover {
+            background: #e0a800;
+        }
+
+        .clear-error-pages-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .clear-error-pages-btn:hover {
+            background: #c82333;
+        }
+
         .status {
             margin: 20px 0;
             padding: 15px;
@@ -417,6 +608,29 @@
             </div>
         </div>
 
+        <!-- Окно логов -->
+        <div id="logsContainer" class="logs-container">
+            <div class="logs-header">
+                <div class="logs-title">📋 Логи парсинга</div>
+                <button class="clear-logs-btn" id="clearLogsBtn">Очистить</button>
+            </div>
+            <div class="logs-content" id="logsContent">
+                <div class="log-entry info">
+                    <span class="log-timestamp">--:--:--</span>
+                    <span class="log-message">Готов к парсингу. Введите номер дела и нажмите "Начать парсинг"</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Страницы с ошибками -->
+        <div id="errorPagesContainer" class="error-pages-container">
+            <div class="error-pages-header">
+                <div class="error-pages-title">⚠️ Сохраненные страницы с ошибками</div>
+                <button class="clear-error-pages-btn" id="clearErrorPagesBtn">Очистить</button>
+            </div>
+            <div id="errorPagesList"></div>
+        </div>
+
         <div id="result" class="result">
             <div class="result-title" id="resultTitle">Результат</div>
             <div id="resultMessage"></div>
@@ -438,30 +652,31 @@
         </div>
 
         <div class="github-info">
-            <h3>ℹ️ Информация о работе на GitHub Pages</h3>
-            <p>Этот парсер работает полностью в браузере без серверной части.</p>
-            <p><strong>Особенности:</strong></p>
+            <h3>ℹ️ Информация о работе с Backend сервисом</h3>
+            <p>Frontend работает на GitHub Pages, парсинг выполняется на backend сервере.</p>
+            <p><strong>Архитектура:</strong></p>
             <ul style="margin-left: 20px; color: #666;">
-                <li>Использует CORS прокси для обхода ограничений браузера</li>
-                <li>Скачивает файлы напрямую в браузер</li>
-                <li>Не требует установки дополнительного ПО</li>
-                <li>Работает на любом устройстве с современным браузером</li>
+                <li>Frontend: GitHub Pages (интерфейс)</li>
+                <li>Backend: localhost:8000 (парсинг и обработка)</li>
+                <li>Файлы сохраняются на backend сервере</li>
+                <li>Скачивание через API backend сервиса</li>
             </ul>
-            <p><strong>Ограничения:</strong></p>
+            <p><strong>Требования:</strong></p>
             <ul style="margin-left: 20px; color: #666;">
-                <li>Некоторые сайты могут блокировать CORS запросы</li>
-                <li>Скорость работы зависит от интернет-соединения</li>
-                <li>Не все документы могут быть доступны для скачивания</li>
+                <li>Backend сервис должен быть запущен на localhost:8000</li>
+                <li>Python 3.8+ с установленными зависимостями</li>
+                <li>Chrome/Chromium браузер для парсинга</li>
+                <li>Стабильное интернет-соединение</li>
             </ul>
         </div>
     </div>
 
-    <!-- Подключаем клиентский парсер -->
-    <script src="js/client-parser.js"></script>
+    <!-- Подключаем backend клиент -->
+    <script src="js/backend-client.js"></script>
     
     <script>
         // Инициализация парсера
-        const parser = new ClientKadArbitrParser();
+        const parser = new BackendClient();
         
         // Элементы DOM
         const parseForm = document.getElementById('parseForm');
@@ -480,6 +695,12 @@
         const successPage = document.getElementById('successPage');
         const successFilesList = document.getElementById('successFilesList');
         const backBtn = document.getElementById('backBtn');
+        const logsContainer = document.getElementById('logsContainer');
+        const logsContent = document.getElementById('logsContent');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const errorPagesContainer = document.getElementById('errorPagesContainer');
+        const errorPagesList = document.getElementById('errorPagesList');
+        const clearErrorPagesBtn = document.getElementById('clearErrorPagesBtn');
 
         // Обработка отправки формы
         parseForm.addEventListener('submit', async (e) => {
@@ -504,18 +725,31 @@
             showMainPage();
         });
 
+        // Обработка кнопки "Очистить логи"
+        clearLogsBtn.addEventListener('click', () => {
+            clearLogs();
+        });
+
+        // Обработка кнопки "Очистить страницы с ошибками"
+        clearErrorPagesBtn.addEventListener('click', () => {
+            clearErrorPages();
+        });
+
         // Запуск парсинга
         async function startParsing(caseNumber) {
             try {
                 // Блокируем кнопку
                 setButtonState(true);
                 clearResults();
+                clearLogs();
                 showStatus('Начинаем парсинг...', 'info');
                 showProgress(true);
 
-                // Запускаем парсинг
+                // Запускаем парсинг с логами
                 const downloadedFiles = await parser.parseCase(caseNumber, (progress) => {
                     updateProgress(progress);
+                }, (logEntry) => {
+                    addLogEntry(logEntry);
                 });
 
                 // Показываем страницу успеха
@@ -524,8 +758,17 @@
 
             } catch (error) {
                 console.error('Ошибка парсинга:', error);
+                addLogEntry({
+                    timestamp: new Date().toLocaleString('ru-RU'),
+                    message: '❌ Критическая ошибка парсинга',
+                    type: 'error',
+                    details: error.message
+                });
                 showResult(false, `Ошибка парсинга: ${error.message}`, []);
                 showStatus('Произошла ошибка при парсинге', 'error');
+                
+                // Показываем страницы с ошибками
+                showErrorPages();
             } finally {
                 setButtonState(false);
                 showProgress(false);
@@ -657,6 +900,95 @@
             successFilesList.innerHTML = '';
             parseForm.style.display = 'block';
             parser.clearFiles();
+        }
+
+        // Добавление записи в логи
+        function addLogEntry(logEntry) {
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry ${logEntry.type}`;
+            
+            logDiv.innerHTML = `
+                <span class="log-timestamp">${logEntry.timestamp}</span>
+                <span class="log-message">${logEntry.message}</span>
+                ${logEntry.details ? `<span class="log-details">- ${logEntry.details}</span>` : ''}
+            `;
+            
+            logsContent.appendChild(logDiv);
+            
+            // Прокручиваем к последней записи
+            logsContent.scrollTop = logsContent.scrollHeight;
+        }
+
+        // Очистка логов
+        function clearLogs() {
+            logsContent.innerHTML = `
+                <div class="log-entry info">
+                    <span class="log-timestamp">--:--:--</span>
+                    <span class="log-message">Логи очищены. Готов к парсингу.</span>
+                </div>
+            `;
+        }
+
+        // Отображение страниц с ошибками
+        function showErrorPages() {
+            const errorPages = parser.getErrorPages();
+            
+            if (errorPages.length === 0) {
+                errorPagesContainer.classList.remove('show');
+                return;
+            }
+            
+            errorPagesContainer.classList.add('show');
+            
+            errorPagesList.innerHTML = errorPages.map(page => `
+                <div class="error-page-item">
+                    <div class="error-page-info">
+                        <div class="error-page-filename">${page.filename}</div>
+                        <div class="error-page-details">
+                            Этап: ${page.step} | Ошибка: ${page.errorMessage} | 
+                            Размер: ${formatFileSize(page.size)} | Время: ${page.timestamp}
+                        </div>
+                    </div>
+                    <button class="download-error-btn" onclick="downloadErrorPage('${page.filename}', '${page.url}')">
+                        📥 Скачать
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Скачивание страницы с ошибкой
+        function downloadErrorPage(filename, url) {
+            try {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ Скачивание страницы с ошибкой: ${filename}`);
+            } catch (error) {
+                console.error('❌ Ошибка скачивания страницы с ошибкой:', error);
+                alert('Ошибка при скачивании страницы с ошибкой');
+            }
+        }
+
+        // Очистка страниц с ошибками
+        function clearErrorPages() {
+            parser.clearErrorPages();
+            errorPagesContainer.classList.remove('show');
+            errorPagesList.innerHTML = '';
+        }
+
+        // Форматирование размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
         // Состояние кнопки

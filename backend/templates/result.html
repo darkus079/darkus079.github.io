@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты парсинга - kad.arbitr.ru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .case-number {
+            color: #666;
+            font-size: 18px;
+            background: #f0f0f0;
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+        }
+
+        .result-panel {
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .result-panel.success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .result-panel.error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .result-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .result-message {
+            font-size: 16px;
+            opacity: 0.8;
+        }
+
+        .files-section {
+            margin-bottom: 30px;
+        }
+
+        .files-title {
+            color: #333;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .files-list {
+            list-style: none;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #28a745;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .file-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .file-name {
+            flex-grow: 1;
+            font-weight: 500;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .file-actions {
+            margin-left: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-block;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-download {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 10px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            font-size: 16px;
+            text-decoration: none;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 10px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            padding: 12px 24px;
+            font-size: 16px;
+            text-decoration: none;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 10px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(108, 117, 125, 0.4);
+        }
+
+        .actions {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state .icon {
+            font-size: 64px;
+            opacity: 0.3;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .status-info {
+            background: #e1f5fe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0277bd;
+        }
+
+        .status-info strong {
+            color: #0277bd;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .title {
+                font-size: 24px;
+            }
+            
+            .file-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .file-actions {
+                margin-left: 0;
+                margin-top: 10px;
+                width: 100%;
+            }
+            
+            .btn-download {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Результаты парсинга</h1>
+            <div class="case-number">Дело: {{ result.case_number }}</div>
+        </div>
+
+        {% if status.progress %}
+        <div class="status-info">
+            <strong>Статус:</strong> {{ status.progress }}
+        </div>
+        {% endif %}
+
+        <div class="result-panel {% if result.success %}success{% else %}error{% endif %}">
+            <span class="result-icon">
+                {% if result.success %}✅{% else %}❌{% endif %}
+            </span>
+            <div class="result-title">
+                {% if result.success %}
+                    Парсинг выполнен успешно!
+                {% else %}
+                    Ошибка парсинга
+                {% endif %}
+            </div>
+            <div class="result-message">{{ result.message }}</div>
+        </div>
+
+        {% if result.files %}
+        <div class="files-section">
+            <h2 class="files-title">📁 Скачанные файлы ({{ result.files|length }})</h2>
+            <ul class="files-list">
+                {% for file in result.files %}
+                <li class="file-item">
+                    <div class="file-name">📄 {{ file }}</div>
+                    <div class="file-actions">
+                        <a href="/download/{{ file }}" class="btn btn-download" download>
+                            ⬇️ Скачать
+                        </a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <span class="icon">📭</span>
+            <h3>Файлы не найдены</h3>
+            <p>Попробуйте проверить номер дела или повторите попытку позже</p>
+        </div>
+        {% endif %}
+
+        <div class="actions">
+            <a href="/" class="btn-primary">🔍 Новый поиск</a>
+            <a href="/files" class="btn-secondary">📁 Все файлы</a>
+            {% if result.files %}
+            <a href="/clear" class="btn-secondary" 
+               onclick="return confirm('Вы уверены, что хотите удалить все скачанные файлы?')">
+                🗑️ Очистить файлы
+            </a>
+            {% endif %}
+            {% if not result.success %}
+            <a href="/diagnostics" class="btn-secondary">🔧 Диагностика</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Автоматическое обновление если парсинг еще идет
+        {% if status.is_parsing %}
+        function checkStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.is_parsing) {
+                        document.querySelector('.status-info').innerHTML = 
+                            '<strong>Статус:</strong> ' + data.progress;
+                        setTimeout(checkStatus, 3000);
+                    } else {
+                        // НЕ ПЕРЕЗАГРУЖАЕМ СТРАНИЦУ - просто показываем результат
+                        document.querySelector('.status-info').innerHTML = 
+                            '<strong>Статус:</strong> Парсинг завершен';
+                        console.log('Парсинг завершен, страница не перезагружается');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка получения статуса:', error);
+                    setTimeout(checkStatus, 5000);
+                });
+        }
+        
+        setTimeout(checkStatus, 3000);
+        {% endif %}
+
+        // Уведомление об успешном скачивании
+        document.querySelectorAll('.btn-download').forEach(btn => {
+            btn.addEventListener('click', function() {
+                setTimeout(() => {
+                    // Можно добавить уведомление о начале скачивания
+                    console.log('Скачивание файла:', this.getAttribute('href'));
+                }, 100);
+            });
+        });
+    </script>
+</body>
+</html>

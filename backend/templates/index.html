@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Парсер kad.arbitr.ru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-panel.parsing {
+            border-left-color: #ffc107;
+            background: #fff8e1;
+        }
+
+        .status-panel.error {
+            border-left-color: #dc3545;
+            background: #ffebee;
+        }
+
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .status-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .example {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .example-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+
+        .example-text {
+            color: #1976d2;
+            font-size: 14px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .files-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+
+        .files-link:hover {
+            background: #e0e0e0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            .title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Парсер kad.arbitr.ru</h1>
+        <p class="subtitle">Скачивание PDF файлов из арбитражных дел</p>
+
+        <form method="post" action="/parse" id="parseForm">
+            <div class="form-group">
+                <label for="case_number" class="form-label">Номер дела:</label>
+                <input 
+                    type="text" 
+                    id="case_number" 
+                    name="case_number" 
+                    class="form-input"
+                    placeholder="Например: А81-8566/2025"
+                    required
+                    {% if status.is_parsing %}disabled{% endif %}
+                >
+            </div>
+            
+            <button 
+                type="submit" 
+                class="btn-primary"
+                id="submitBtn"
+                {% if status.is_parsing %}disabled{% endif %}
+            >
+                {% if status.is_parsing %}
+                    <span class="spinner"></span>
+                    Парсинг в процессе...
+                {% else %}
+                    🔍 Найти и скачать файлы
+                {% endif %}
+            </button>
+        </form>
+
+        {% if status.is_parsing %}
+        <div class="status-panel parsing">
+            <div class="status-title">📊 Статус парсинга</div>
+            <div class="status-text">
+                <strong>Дело:</strong> {{ status.current_case }}<br>
+                <strong>Прогресс:</strong> {{ status.progress }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="example">
+            <div class="example-title">📝 Пример номера дела:</div>
+            <div class="example-text">А81-8566/2025, А40-123456/2024, А50-98765/2025</div>
+        </div>
+
+        <a href="/files" class="files-link">📁 Посмотреть скачанные файлы</a>
+        <a href="/diagnostics" class="files-link">🔧 Диагностика проблем</a>
+
+        <script>
+            // Автообновление статуса во время парсинга
+            {% if status.is_parsing %}
+            function updateStatus() {
+                fetch('/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.is_parsing) {
+                            document.querySelector('.status-text').innerHTML = 
+                                '<strong>Дело:</strong> ' + data.current_case + '<br>' +
+                                '<strong>Прогресс:</strong> ' + data.progress;
+                            setTimeout(updateStatus, 2000);
+                        } else {
+                            location.reload();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка получения статуса:', error);
+                        setTimeout(updateStatus, 5000);
+                    });
+            }
+            
+            setTimeout(updateStatus, 2000);
+            {% endif %}
+            
+            // Обработка формы
+            document.getElementById('parseForm').addEventListener('submit', function(e) {
+                const btn = document.getElementById('submitBtn');
+                const input = document.getElementById('case_number');
+                
+                if (!input.value.trim()) {
+                    e.preventDefault();
+                    alert('Пожалуйста, введите номер дела');
+                    return;
+                }
+                
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Начинаем парсинг...';
+            });
+        </script>
+    </div>
+</body>
+</html>
