@@ -63,7 +63,7 @@ class StatusResponse(BaseModel):
     is_parsing: bool
     current_case: str
     progress: str
-    start_time: str = None
+    start_time: str = ""
     files_count: int = 0
     queue_size: int = 0
 
@@ -78,8 +78,8 @@ async def lifespan(app: FastAPI):
     parsing_status = {
         "is_parsing": False, 
         "current_case": "", 
-        "progress": "",
-        "start_time": None,
+        "progress": "Готов к работе",
+        "start_time": "",
         "files_count": 0
     }
     
@@ -250,8 +250,16 @@ async def process_parsing_request(case_number: str):
         loop = asyncio.get_event_loop()
         
         def progress_callback(progress_text):
-            parsing_status["progress"] = progress_text
-            logger.info(f"📊 {progress_text}")
+            # Обновляем статус с детальной информацией
+            current_time = datetime.now().strftime("%H:%M:%S")
+            elapsed_time = time.time() - start_time
+            parsing_status["progress"] = f"[{current_time}] {progress_text}"
+            parsing_status["files_count"] = len([f for f in os.listdir("files") if f.endswith('.pdf')]) if os.path.exists("files") else 0
+            
+            # Логируем с дополнительной информацией
+            logger.info(f"📊 [{current_time}] {progress_text}")
+            logger.info(f"⏱️ Время выполнения: {elapsed_time:.1f}с")
+            logger.info(f"📁 Обработано файлов: {parsing_status['files_count']}")
         
         # Добавляем дополнительное логирование перед парсингом
         logger.info(f"🌐 Открытие браузера для парсинга...")
@@ -281,7 +289,7 @@ async def process_parsing_request(case_number: str):
             "is_parsing": False,
             "current_case": "",
             "progress": f"Парсинг завершен. Скачано файлов: {len(downloaded_files)}",
-            "start_time": None,
+            "start_time": "",
             "files_count": len(downloaded_files)
         })
         
@@ -317,7 +325,7 @@ async def process_parsing_request(case_number: str):
             "is_parsing": False,
             "current_case": "",
             "progress": f"Ошибка: {str(e)}",
-            "start_time": None,
+            "start_time": "",
             "files_count": 0
         })
         

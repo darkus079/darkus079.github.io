@@ -107,13 +107,8 @@ class BackendClient {
   startStatusMonitoring() {
     this.log('📊 Запуск мониторинга статуса...', 'info');
     
-    this.statusCheckInterval = setInterval(async () => {
-      try {
-        await this.checkStatus();
-      } catch (error) {
-        this.log('⚠️ Ошибка проверки статуса', 'warning', error.message);
-      }
-    }, 2000); // Проверяем каждые 2 секунды
+    // Не запускаем отдельный интервал, так как waitForCompletion() уже проверяет статус
+    // Это предотвращает дублирование запросов
   }
 
   /**
@@ -145,9 +140,12 @@ class BackendClient {
         this.progressCallback(status.progress);
       }
 
-      // Логируем изменения
+      // Логируем только важные изменения
       if (status.is_parsing && status.current_case === this.currentCase) {
-        this.log('📊 Статус парсинга', 'info', status.progress);
+        // Логируем только если прогресс изменился
+        if (status.progress && status.progress !== 'Готов к работе') {
+          this.log('📊 Статус парсинга', 'info', status.progress);
+        }
       }
 
       return status;
@@ -161,15 +159,28 @@ class BackendClient {
    * Ожидание завершения парсинга
    */
   async waitForCompletion() {
-    const maxWaitTime = 300000; // 5 минут
+    const maxWaitTime = 600000; // 10 минут (увеличено для сложных случаев)
     const startTime = Date.now();
+    let lastStatus = null;
+    let parsingStarted = false;
+    
+    this.log('⏳ Ожидание завершения парсинга...', 'info');
     
     while (Date.now() - startTime < maxWaitTime) {
       try {
         const status = await this.checkStatus();
         
-        if (!status.is_parsing) {
-          // Парсинг завершен, получаем список файлов
+        // Логируем изменения статуса
+        if (status.is_parsing && !parsingStarted) {
+          parsingStarted = true;
+          this.log('🔄 Парсинг начался', 'info', `Дело: ${status.current_case}`);
+        }
+        
+        // Проверяем, завершился ли парсинг
+        if (parsingStarted && !status.is_parsing) {
+          this.log('✅ Парсинг завершен на backend', 'success', status.progress);
+          
+          // Получаем список файлов
           const files = await this.getFilesList();
           
           return {
@@ -179,8 +190,19 @@ class BackendClient {
           };
         }
         
+        // Если парсинг еще не начался, ждем
+        if (!parsingStarted) {
+          this.log('⏳ Ожидание начала парсинга...', 'info');
+        } else {
+          // Парсинг в процессе, показываем прогресс
+          if (lastStatus === null || lastStatus.progress !== status.progress) {
+            this.log('📊 Прогресс парсинга', 'info', status.progress);
+            lastStatus = status;
+          }
+        }
+        
         // Ждем перед следующей проверкой
-        await this.delay(2000);
+        await this.delay(3000); // Увеличиваем интервал до 3 секунд
         
       } catch (error) {
         this.log('⚠️ Ошибка ожидания завершения', 'warning', error.message);
@@ -188,7 +210,7 @@ class BackendClient {
       }
     }
     
-    throw new Error('Превышено время ожидания завершения парсинга');
+    throw new Error('Превышено время ожидания завершения парсинга (10 минут)');
   }
 
   /**

@@ -25,6 +25,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import tempfile
 import glob
+from pdf_extraction_algorithms import PDFExtractionAlgorithms
 
 UC_AVAILABLE = True
 
@@ -136,6 +137,23 @@ class KadArbitrParser:
             # Настройки окна
             options.add_argument('--window-size=1920,1080')
             options.add_argument('--start-maximized')
+            
+            # Улучшенные настройки стабильности
+            options.add_argument('--disable-web-security')
+            options.add_argument('--disable-features=VizDisplayCompositor')
+            options.add_argument('--disable-ipc-flooding-protection')
+            options.add_argument('--disable-renderer-backgrounding')
+            options.add_argument('--disable-backgrounding-occluded-windows')
+            options.add_argument('--disable-client-side-phishing-detection')
+            options.add_argument('--disable-sync')
+            options.add_argument('--disable-translate')
+            options.add_argument('--disable-background-timer-throttling')
+            options.add_argument('--disable-backgrounding-occluded-windows')
+            options.add_argument('--disable-renderer-backgrounding')
+            
+            # Настройки таймаутов
+            options.add_argument('--timeout=30000')
+            options.add_argument('--page-load-strategy=normal')
             
             # Отключение подозрительных функций
             options.add_argument('--disable-extensions-file-access-check')
@@ -730,35 +748,39 @@ class KadArbitrParser:
     
     def search_case(self, case_number):
         """Ищет дело по номеру с максимально человекоподобным поведением"""
-        try:
-            logger.info(f"🎯 Начинаем человекоподобный поиск дела: {case_number}")
-            
-            # ЭТАП 1: Переход на сайт с человекоподобным поведением
-            logger.info("🌐 Переходим на kad.arbitr.ru...")
-            self.driver.get("https://kad.arbitr.ru/")
-            
-            # Ждем загрузки страницы и делаем человекоподобную паузу
-            self._human_delay(2, 4, "ожидание загрузки главной страницы")
-            
-            # Настраиваем реалистичную сессию
-            self._setup_realistic_session()
-            
-            # ЭТАП 2: Проверка антибот мер
-            if not self._handle_anti_bot_measures():
-                logger.error("🚫 Сайт заблокировал доступ")
-                return []
-            
-            # ЭТАП 3: Имитация изучения страницы
-            logger.info("👁️ Изучаем главную страницу...")
-            self._simulate_human_reading((3, 6))
-            
-            # Делаем несколько случайных движений мыши
-            self._human_mouse_move(random_movement=True)
-            
-            # ЭТАП 4: Поиск поля ввода с повышенной надежностью
-            logger.info("🔍 Ищем поле поиска дел...")
-            
-            search_input = None
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                logger.info(f"🎯 Начинаем человекоподобный поиск дела: {case_number} (попытка {retry_count + 1})")
+                
+                # ЭТАП 1: Переход на сайт с человекоподобным поведением
+                logger.info("🌐 Переходим на kad.arbitr.ru...")
+                self.driver.get("https://kad.arbitr.ru/")
+                
+                # Ждем загрузки страницы и делаем человекоподобную паузу
+                self._human_delay(2, 4, "ожидание загрузки главной страницы")
+                
+                # Настраиваем реалистичную сессию
+                self._setup_realistic_session()
+                
+                # ЭТАП 2: Проверка антибот мер
+                if not self._handle_anti_bot_measures():
+                    logger.error("🚫 Сайт заблокировал доступ")
+                    return []
+                
+                # ЭТАП 3: Имитация изучения страницы
+                logger.info("👁️ Изучаем главную страницу...")
+                self._simulate_human_reading((3, 6))
+                
+                # Делаем несколько случайных движений мыши
+                self._human_mouse_move(random_movement=True)
+                
+                # ЭТАП 4: Поиск поля ввода с повышенной надежностью
+                logger.info("🔍 Ищем поле поиска дел...")
+                
+                search_input = None
             input_selectors = [
                 "#sug-cases > div > input",
                 "#sug-cases input",
@@ -1025,18 +1047,42 @@ class KadArbitrParser:
                 
                 return []
                 
-        except Exception as e:
-            logger.error(f"❌ Критическая ошибка поиска дела: {e}")
-            
-            # Сохраняем скриншот для диагностики
-            try:
-                screenshot_name = f"search_error_{int(time.time())}.png"
-                self.driver.save_screenshot(screenshot_name)
-                logger.info(f"📸 Скриншот ошибки сохранен: {screenshot_name}")
-            except Exception as screenshot_error:
-                logger.warning(f"Не удалось сохранить скриншот: {screenshot_error}")
-            
-            return []
+            except Exception as e:
+                logger.error(f"❌ Критическая ошибка поиска дела (попытка {retry_count + 1}): {e}")
+                
+                # Проверяем, является ли ошибка связанной с WebDriver
+                if "HTTPConnectionPool" in str(e) or "Failed to establish" in str(e):
+                    logger.warning("🔄 Обнаружена ошибка подключения к WebDriver, пробуем переподключиться...")
+                    
+                    # Закрываем текущий драйвер
+                    try:
+                        if self.driver:
+                            self.driver.quit()
+                    except:
+                        pass
+                    self.driver = None
+                    
+                    # Пытаемся переподключиться
+                    if self.init_driver():
+                        logger.info("✅ WebDriver переподключен, повторяем попытку...")
+                        retry_count += 1
+                        continue
+                    else:
+                        logger.error("❌ Не удалось переподключить WebDriver")
+                        return []
+                else:
+                    # Для других ошибок просто увеличиваем счетчик
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        logger.info(f"🔄 Повторяем попытку {retry_count + 1}/{max_retries}...")
+                        self._human_delay(3, 5, "перед повторной попыткой")
+                        continue
+                    else:
+                        logger.error("❌ Исчерпаны все попытки поиска дела")
+                        return []
+        
+        logger.error("❌ Все попытки поиска дела исчерпаны")
+        return []
     
     def download_pdf_files(self, case_url, case_number):
         """Скачивает PDF файлы из электронного дела"""
@@ -2577,10 +2623,35 @@ startxref
             logger.info(f"🔄 Обработка дела: {case_text}")
             
             downloaded_files = []
+            
+            # Сначала пробуем стандартный метод
             try:
+                logger.info("🔍 Попытка стандартного извлечения PDF...")
                 downloaded_files = self.download_pdf_files(case_url, case_number)
+                logger.info(f"📄 Стандартный метод: найдено {len(downloaded_files)} файлов")
             except Exception as e:
-                logger.error(f"❌ Ошибка при скачивании файлов: {e}")
+                logger.error(f"❌ Ошибка в стандартном методе: {e}")
+            
+            # Если стандартный метод не дал результатов, используем альтернативные алгоритмы
+            if not downloaded_files:
+                logger.info("🔄 Стандартный метод не дал результатов, запуск альтернативных алгоритмов...")
+                try:
+                    pdf_extractor = PDFExtractionAlgorithms(self.driver, self.files_dir)
+                    alternative_files = pdf_extractor.run_all_algorithms(case_number)
+                    downloaded_files.extend(alternative_files)
+                    logger.info(f"📄 Альтернативные алгоритмы: найдено {len(alternative_files)} файлов")
+                except Exception as e:
+                    logger.error(f"❌ Ошибка в альтернативных алгоритмах: {e}")
+            
+            # Если все еще нет файлов, пробуем дополнительные методы
+            if not downloaded_files:
+                logger.info("🔄 Дополнительные методы поиска PDF...")
+                try:
+                    additional_files = self._try_additional_pdf_methods(case_url, case_number)
+                    downloaded_files.extend(additional_files)
+                    logger.info(f"📄 Дополнительные методы: найдено {len(additional_files)} файлов")
+                except Exception as e:
+                    logger.error(f"❌ Ошибка в дополнительных методах: {e}")
             
             logger.info(f"✅ Обработка завершена. Скачано файлов: {len(downloaded_files)}")
             return downloaded_files
@@ -2616,6 +2687,72 @@ startxref
         
         return sorted(files)
     
+    def _try_additional_pdf_methods(self, case_url, case_number):
+        """Дополнительные методы поиска PDF файлов"""
+        logger.info("🔍 Дополнительные методы поиска PDF")
+        downloaded_files = []
+        
+        try:
+            # Метод 1: Поиск в исходном коде страницы
+            page_source = self.driver.page_source
+            pdf_patterns = [
+                r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'src=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'data-pdf=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'data-file=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'data-url=["\']([^"\']*\.pdf[^"\']*)["\']'
+            ]
+            
+            pdf_links = []
+            for pattern in pdf_patterns:
+                matches = re.findall(pattern, page_source, re.IGNORECASE)
+                pdf_links.extend(matches)
+            
+            # Метод 2: Поиск через JavaScript
+            js_scripts = [
+                "return Array.from(document.querySelectorAll('a[href*=\".pdf\"]')).map(a => a.href);",
+                "return Array.from(document.querySelectorAll('[data-pdf]')).map(el => el.getAttribute('data-pdf'));",
+                "return Array.from(document.querySelectorAll('[data-file]')).map(el => el.getAttribute('data-file'));"
+            ]
+            
+            for script in js_scripts:
+                try:
+                    links = self.driver.execute_script(script)
+                    if links:
+                        pdf_links.extend(links)
+                except:
+                    continue
+            
+            # Скачиваем найденные файлы
+            for i, link in enumerate(set(pdf_links)):
+                try:
+                    if link.startswith('//'):
+                        link = 'https:' + link
+                    elif link.startswith('/'):
+                        base_url = '/'.join(case_url.split('/')[:3])
+                        link = base_url + link
+                    elif not link.startswith('http'):
+                        link = urljoin(case_url, link)
+                    
+                    filename = f"additional_method_{i+1}.pdf"
+                    filepath = os.path.join(self.files_dir, filename)
+                    
+                    response = requests.get(link, timeout=30)
+                    if response.status_code == 200 and len(response.content) > 1000:
+                        with open(filepath, 'wb') as f:
+                            f.write(response.content)
+                        downloaded_files.append(filepath)
+                        logger.info(f"✅ Дополнительный метод: скачан {filename}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка скачивания {link}: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в дополнительных методах: {e}")
+        
+        return downloaded_files
+
     def close(self):
         """Закрывает WebDriver"""
         if self.driver:
