@@ -1402,22 +1402,224 @@ class KadArbitrParser:
                 logger.error("❌ Дела не найдены")
                 return []
             
-            # ШАГ 3: Обрабатываем ВСЕ файлы по первому найденному делу
-            logger.info("📁 ШАГ 3: Обработка файлов")
+            # ШАГ 3: Переходим на страницу дела и обрабатываем документы
+            logger.info("📁 ШАГ 3: Переход на страницу дела и обработка документов")
             case_url, case_text = case_links[0]
             logger.info(f"🔄 Обработка дела: {case_text}")
+            logger.info(f"🔗 URL дела: {case_url}")
             
             downloaded_files = []
             
-            # Используем ТОЛЬКО новые алгоритмы для каждого документа
-            logger.info("🔍 Запуск новых алгоритмов извлечения PDF...")
+            # ШАГ 3.1: Открываем ссылку на дело в новой вкладке
+            logger.info("🪟 ШАГ 3.1: Открытие ссылки на дело в новой вкладке")
             try:
-                pdf_extractor = PDFExtractionAlgorithms(self.driver, self.files_dir)
-                alternative_files = pdf_extractor.run_all_algorithms(case_number)
-                downloaded_files.extend(alternative_files)
-                logger.info(f"📄 Новые алгоритмы: найдено {len(alternative_files)} файлов")
+                # Сохраняем текущее окно
+                original_window = self.driver.current_window_handle
+                logger.info(f"📍 [TAB] Оригинальное окно: {original_window}")
+                
+                # Открываем новую вкладку
+                self.driver.execute_script("window.open('');")
+                time.sleep(1)
+                
+                # Переключаемся на новую вкладку
+                new_window = self.driver.window_handles[-1]
+                self.driver.switch_to.window(new_window)
+                logger.info(f"✅ [TAB] Переключились на новую вкладку: {new_window}")
+                
+                # Загружаем страницу дела
+                logger.info(f"🌐 [TAB] Загружаем страницу дела: {case_url}")
+                self.driver.get(case_url)
+                time.sleep(5)
+                
+                current_url = self.driver.current_url
+                logger.info(f"✅ [TAB] Страница дела загружена: {current_url}")
+                
             except Exception as e:
-                logger.error(f"❌ Ошибка в новых алгоритмах: {e}")
+                logger.error(f"❌ Ошибка открытия новой вкладки: {e}")
+                return []
+            
+            # ШАГ 3.2: Нажимаем на кнопку "Электронное дело"
+            logger.info("🔘 ШАГ 3.2: Поиск и нажатие кнопки 'Электронное дело'")
+            try:
+                # Ищем кнопку "Электронное дело" по точному селектору
+                electronic_tab_selectors = [
+                    "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div.b-case-chrono-header > div > div:nth-child(2) > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text",
+                    "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div.b-case-chrono-header > div > div:nth-child(2) > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed.active > div.b-case-chrono-button-text",
+                    ".b-case-chrono-button--ed .b-case-chrono-button-text",
+                    "div[class*='b-case-chrono-button--ed'] div[class*='b-case-chrono-button-text']",
+                    "//div[contains(@class, 'b-case-chrono-button--ed')]//div[contains(@class, 'b-case-chrono-button-text')]"
+                ]
+                
+                electronic_tab = None
+                used_selector = None
+                
+                for selector in electronic_tab_selectors:
+                    try:
+                        if selector.startswith('//'):
+                            # XPath селектор
+                            electronic_tab = WebDriverWait(self.driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, selector))
+                            )
+                        else:
+                            # CSS селектор
+                            electronic_tab = WebDriverWait(self.driver, 5).until(
+                                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                            )
+                        
+                        used_selector = selector
+                        logger.info(f"✅ [TAB] Найдена кнопка 'Электронное дело': {selector}")
+                        break
+                        
+                    except TimeoutException:
+                        logger.debug(f"[TAB] Кнопка не найдена: {selector}")
+                        continue
+                
+                if not electronic_tab:
+                    logger.error("❌ [TAB] Кнопка 'Электронное дело' не найдена!")
+                    return []
+                
+                # Кликаем по кнопке
+                logger.info("🖱️ [TAB] Кликаем по кнопке 'Электронное дело'...")
+                try:
+                    electronic_tab.click()
+                    logger.info("✅ [TAB] Клик по кнопке выполнен")
+                except Exception as e:
+                    logger.warning(f"⚠️ [TAB] Обычный клик не сработал: {e}, пробуем JavaScript")
+                    self.driver.execute_script("arguments[0].click();", electronic_tab)
+                    logger.info("✅ [TAB] JavaScript клик выполнен")
+                
+                # Ждем загрузки списка документов
+                logger.info("⏳ [TAB] Ожидание загрузки списка документов...")
+                time.sleep(3)
+                
+                # Проверяем, что список документов загрузился
+                try:
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "#chrono_ed_content > ul"))
+                    )
+                    logger.info("✅ [TAB] Список документов загружен")
+                except TimeoutException:
+                    logger.warning("⚠️ [TAB] Список документов не загрузился, продолжаем...")
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка нажатия кнопки 'Электронное дело': {e}")
+                return []
+            
+            # ШАГ 3.3: Обрабатываем документы
+            logger.info("📄 ШАГ 3.3: Обработка документов дела")
+            try:
+                # Ищем все документы в списке
+                document_elements = self.driver.find_elements(By.CSS_SELECTOR, "#chrono_ed_content > ul > li")
+                total_documents = len(document_elements)
+                
+                if not document_elements:
+                    logger.warning("❌ [TAB] Документы не найдены в списке")
+                    return []
+                
+                logger.info(f"📄 [TAB] Найдено {total_documents} документов для обработки")
+                
+                # Ограничиваем количество документов
+                max_documents = min(total_documents, 5)
+                if total_documents > max_documents:
+                    logger.warning(f"🛑 [TAB] Ограничение: обрабатываем только первые {max_documents} из {total_documents} документов")
+                
+                # Обрабатываем каждый документ
+                for i, doc_element in enumerate(document_elements[:max_documents], 1):
+                    # ПРОВЕРКА: Если парсер остановлен, прерываем обработку
+                    if not self.is_processing:
+                        logger.warning("🛑 ПАРСЕР ОСТАНОВЛЕН - обработка документов прервана")
+                        break
+                    
+                    try:
+                        logger.info(f"📋 [TAB] Обработка документа {i}/{max_documents}")
+                        
+                        # Извлекаем ссылку на PDF
+                        pdf_link_element = doc_element.find_element(By.CSS_SELECTOR, "a")
+                        pdf_url = pdf_link_element.get_attribute('href')
+                        doc_title = pdf_link_element.text.strip() or f"document_{i}"
+                        
+                        # Очищаем название
+                        doc_title = re.sub(r'\s+', ' ', doc_title).strip()
+                        
+                        if not pdf_url:
+                            logger.warning(f"⚠️ [TAB] Пустая ссылка для документа {i}")
+                            continue
+                        
+                        logger.info(f"🔗 [TAB] Ссылка на документ {i}: {pdf_url}")
+                        logger.info(f"📄 [TAB] Название документа {i}: {doc_title}")
+                        
+                        # ШАГ 3.4: Открываем документ в новой вкладке и скачиваем
+                        logger.info(f"🪟 [TAB] Открытие документа {i} в новой вкладке...")
+                        
+                        try:
+                            # Сохраняем текущее окно (окно со списком документов)
+                            case_window = self.driver.current_window_handle
+                            
+                            # Открываем новую вкладку для документа
+                            self.driver.execute_script("window.open('');")
+                            time.sleep(1)
+                            
+                            # Переключаемся на новую вкладку документа
+                            doc_window = self.driver.window_handles[-1]
+                            self.driver.switch_to.window(doc_window)
+                            logger.info(f"✅ [TAB] Переключились на вкладку документа {i}")
+                            
+                            # Загружаем страницу документа
+                            logger.info(f"🌐 [TAB] Загружаем страницу документа {i}: {pdf_url}")
+                            self.driver.get(pdf_url)
+                            time.sleep(5)
+                            
+                            doc_current_url = self.driver.current_url
+                            logger.info(f"✅ [TAB] Страница документа {i} загружена: {doc_current_url}")
+                            
+                            # Запускаем все алгоритмы извлечения PDF на странице документа
+                            logger.info(f"🔄 [TAB] Запуск всех алгоритмов для документа {i}...")
+                            pdf_extractor = PDFExtractionAlgorithms(self.driver, self.files_dir, self.downloads_dir)
+                            result_files = pdf_extractor.run_all_algorithms(case_number)
+                            
+                            if result_files:
+                                downloaded_files.extend(result_files)
+                                logger.info(f"✅ [TAB] Документ {i} обработан: {len(result_files)} файлов")
+                            else:
+                                logger.warning(f"❌ [TAB] Не удалось обработать документ {i}")
+                            
+                            # Закрываем вкладку документа и возвращаемся к списку документов
+                            logger.info(f"🔙 [TAB] Закрываем вкладку документа {i}...")
+                            self.driver.close()
+                            self.driver.switch_to.window(case_window)
+                            logger.info(f"✅ [TAB] Вернулись к списку документов")
+                            
+                        except Exception as e:
+                            logger.error(f"❌ [TAB] Ошибка обработки документа {i}: {e}")
+                            # Пытаемся вернуться к списку документов
+                            try:
+                                if len(self.driver.window_handles) > 1:
+                                    self.driver.switch_to.window(case_window)
+                            except:
+                                pass
+                            continue
+                        
+                        # Небольшая пауза между документами
+                        time.sleep(1)
+                        
+                    except Exception as e:
+                        logger.error(f"❌ [TAB] Ошибка извлечения данных документа {i}: {e}")
+                        continue
+                
+                # Закрываем вкладку дела и возвращаемся к оригинальному окну
+                logger.info("🔙 [TAB] Закрываем вкладку дела...")
+                self.driver.close()
+                self.driver.switch_to.window(original_window)
+                logger.info("✅ [TAB] Вернулись в оригинальное окно")
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка обработки документов: {e}")
+                # Пытаемся вернуться в оригинальное окно
+                try:
+                    if len(self.driver.window_handles) > 1:
+                        self.driver.switch_to.window(original_window)
+                except:
+                    pass
             
             
             
