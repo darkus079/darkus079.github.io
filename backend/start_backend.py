@@ -22,7 +22,7 @@ def signal_handler(signum, frame):
     global server_running, server_process
     
     print(f"\n🛑 Получен сигнал {signum} (Ctrl+C), завершение работы...")
-    print("⏹️  Остановка backend сервиса...")
+    print("Остановка backend сервиса...")
     print("📝 Завершение работы парсера...")
     
     # Устанавливаем флаг остановки
@@ -32,11 +32,11 @@ def signal_handler(signum, frame):
     if server_process:
         try:
             server_process.terminate()
-            print("✅ Процесс сервера завершен")
+            print("Процесс сервера завершен")
         except:
             pass
     
-    print("✅ Backend сервис остановлен")
+    print("Backend сервис остановлен")
     print("👋 До свидания!")
     sys.exit(0)
 
@@ -68,7 +68,7 @@ def kill_process_on_port(port):
                         if len(parts) >= 5:
                             pid = parts[-1]
                             subprocess.run(f'taskkill /F /PID {pid}', shell=True)
-                            print(f"✅ Завершен процесс {pid} на порту {port}")
+                            print(f"Завершен процесс {pid} на порту {port}")
         else:
             # Linux/Mac
             result = subprocess.run(
@@ -80,22 +80,22 @@ def kill_process_on_port(port):
             if result.returncode == 0 and result.stdout.strip():
                 pid = result.stdout.strip()
                 subprocess.run(f'kill -9 {pid}', shell=True)
-                print(f"✅ Завершен процесс {pid} на порту {port}")
+                print(f"Завершен процесс {pid} на порту {port}")
     except Exception as e:
-        print(f"⚠️ Не удалось завершить процесс на порту {port}: {e}")
+        print(f"Не удалось завершить процесс на порту {port}: {e}")
 
 def check_python_version():
     """Проверка версии Python"""
     if sys.version_info < (3, 8):
-        print("❌ Требуется Python 3.8 или выше")
+        print("Требуется Python 3.8 или выше")
         print(f"   Текущая версия: {sys.version}")
         return False
-    print(f"✅ Python версия: {sys.version.split()[0]}")
+    print(f"Python версия: {sys.version.split()[0]}")
     return True
 
 def check_dependencies():
     """Проверка установленных зависимостей"""
-    print("🔍 Проверка зависимостей...")
+    print("Проверка зависимостей...")
     
     required_packages = [
         'fastapi',
@@ -110,9 +110,9 @@ def check_dependencies():
     for package in required_packages:
         try:
             __import__(package)
-            print(f"✅ {package}")
+            print(f"{package}")
         except ImportError:
-            print(f"❌ {package} - не установлен")
+            print(f"{package} - не установлен")
             missing_packages.append(package)
     
     if missing_packages:
@@ -122,16 +122,16 @@ def check_dependencies():
                 sys.executable, '-m', 'pip', 'install', 
                 '-r', 'requirements.txt', '--upgrade'
             ])
-            print("✅ Зависимости установлены")
+            print("Зависимости установлены")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Ошибка установки зависимостей: {e}")
+            print(f"Ошибка установки зависимостей: {e}")
             return False
     
     return True
 
 def check_chrome():
     """Проверка наличия Chrome/Chromium"""
-    print("🔍 Проверка Chrome/Chromium...")
+    print("Проверка Chrome/Chromium...")
     
     chrome_paths = [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -143,22 +143,22 @@ def check_chrome():
     
     for path in chrome_paths:
         if os.path.exists(path):
-            print(f"✅ Chrome найден: {path}")
+            print(f"Chrome найден: {path}")
             return True
     
-    print("⚠️ Chrome не найден в стандартных путях")
+    print("Chrome не найден в стандартных путях")
     print("   Убедитесь, что Chrome установлен")
     return True  # Не блокируем запуск
 
 def create_directories():
     """Создание необходимых директорий"""
-    print("📁 Создание директорий...")
+    print("Создание директорий...")
     
     directories = ['files', 'templates', 'logs']
     
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
-        print(f"✅ {directory}/")
+        print(f"{directory}/")
     
     return True
 
@@ -166,7 +166,7 @@ def start_backend():
     """Запуск backend сервиса"""
     global server_running, server_process
     
-    print("🚀 Запуск backend сервиса...")
+    print("Запуск backend сервиса...")
     
     # Настройка обработчиков сигналов
     signal.signal(signal.SIGINT, signal_handler)
@@ -175,12 +175,12 @@ def start_backend():
     # Проверяем доступность порта
     port = 8000
     if not check_port_available(port):
-        print(f"⚠️ Порт {port} занят, пытаемся освободить...")
+        print(f"Порт {port} занят, пытаемся освободить...")
         kill_process_on_port(port)
         time.sleep(2)
         
         if not check_port_available(port):
-            print(f"❌ Порт {port} все еще занят")
+            print(f"Порт {port} все еще занят")
             print("   Попробуйте:")
             print("   1. Закрыть другие приложения")
             print("   2. Перезагрузить компьютер")
@@ -192,10 +192,10 @@ def start_backend():
         from backend_service import app
         import uvicorn
         
-        print("✅ Backend сервис запущен")
-        print("📱 API доступен по адресу: http://127.0.0.1:8000")
-        print("📋 Документация API: http://127.0.0.1:8000/docs")
-        print("⏹️  Для остановки нажмите Ctrl+C")
+        print("Backend сервис запущен")
+        print("API доступен по адресу: http://127.0.0.1:8000")
+        print("Документация API: http://127.0.0.1:8000/docs")
+        print("Для остановки нажмите Ctrl+C")
         
         # Устанавливаем флаг запуска
         server_running = True
@@ -214,7 +214,7 @@ def start_backend():
                 )
             except Exception as e:
                 if server_running:  # Только если не остановлен принудительно
-                    print(f"❌ Ошибка сервера: {e}")
+                    print(f"Ошибка сервера: {e}")
         
         # Запускаем сервер
         server_thread = threading.Thread(target=run_server, daemon=True)
@@ -228,7 +228,7 @@ def start_backend():
             signal_handler(signal.SIGINT, None)
         
     except Exception as e:
-        print(f"❌ Ошибка запуска backend сервиса: {e}")
+        print(f"Ошибка запуска backend сервиса: {e}")
         return False
     
     return True
@@ -236,12 +236,12 @@ def start_backend():
 def main():
     """Основная функция"""
     print("=" * 60)
-    print("🚀 ПАРСЕР KAD.ARBITR.RU - BACKEND СЕРВИС")
+    print("ПАРСЕР KAD.ARBITR.RU - BACKEND СЕРВИС")
     print("=" * 60)
     
     # Проверяем, что мы в правильной директории
     if not os.path.exists('backend_service.py'):
-        print("❌ Файл backend_service.py не найден")
+        print("Файл backend_service.py не найден")
         print("   Запустите скрипт из папки backend/")
         return False
     
@@ -258,7 +258,7 @@ def main():
         return False
     
     print("\n" + "=" * 60)
-    print("✅ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ")
+    print("ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ")
     print("=" * 60)
     
     # Запускаем backend
@@ -276,5 +276,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         signal_handler(signal.SIGINT, None)
     except Exception as e:
-        print(f"\n❌ Критическая ошибка: {e}")
+        print(f"\nКритическая ошибка: {e}")
         sys.exit(1)

@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Альтернативные алгоритмы для извлечения PDF файлов
+Новые алгоритмы извлечения PDF файлов
+Основаны на примерах из first.py, second.py, third.py и complex.py
 """
 
 import os
@@ -10,471 +9,2238 @@ import logging
 import requests
 import json
 import re
-from urllib.parse import urljoin, urlparse
-from bs4 import BeautifulSoup
-import tempfile
+from io import BytesIO
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 logger = logging.getLogger(__name__)
 
+# ЧЕРНЫЙ СПИСОК URL - документы, которые НЕ нужно скачивать
+PDF_URL_BLACKLIST = [
+    'Content/Политика конфиденциальности.pdf',
+    '/Content/Политика конфиденциальности.pdf',
+    'https://kad.arbitr.ru/Content/Политика конфиденциальности.pdf',
+    'privacy',
+    'policy',
+    'terms',
+    'agreement',
+    'cookie',
+    'help',
+    'manual',
+    'instruction'
+]
+
 class PDFExtractionAlgorithms:
-    """Класс с альтернативными алгоритмами извлечения PDF"""
+    """Класс с новыми алгоритмами извлечения PDF"""
     
-    def __init__(self, driver, files_dir):
+    def __init__(self, driver, files_dir, downloads_dir=None):
         self.driver = driver
         self.files_dir = files_dir
-        self.downloaded_files = []
+        self.downloads_dir = downloads_dir
+        os.makedirs(files_dir, exist_ok=True)
     
-    def extract_pdfs_algorithm_1_direct_links(self, case_number):
-        """Алгоритм 1: Прямые ссылки на PDF через data-атрибуты"""
-        logger.info("🔍 Алгоритм 1: Поиск прямых ссылок на PDF")
+    def _is_blacklisted_url(self, url):
+        """
+        Проверяет, находится ли URL в черном списке
         
-        try:
-            # Ищем элементы с data-атрибутами, содержащими ссылки на PDF
-            pdf_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[data-pdf], [data-file], [data-document], [data-url]')
+        Args:
+            url: URL для проверки
             
-            pdf_links = []
-            for element in pdf_elements:
-                for attr in ['data-pdf', 'data-file', 'data-document', 'data-url']:
-                    if element.get_attribute(attr):
-                        pdf_links.append(element.get_attribute(attr))
-            
-            # Также ищем скрытые ссылки
-            hidden_links = self.driver.find_elements(By.CSS_SELECTOR, 
-                'a[href*=".pdf"]:not([style*="display: none"])')
-            
-            for link in hidden_links:
-                href = link.get_attribute('href')
-                if href and href not in pdf_links:
-                    pdf_links.append(href)
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} прямых ссылок на PDF")
-            return self._download_files(pdf_links, "algorithm_1")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 1: {e}")
-            return []
+        Returns:
+            True если URL в черном списке
+        """
+        if not url:
+            return True
+        
+        url_lower = url.lower()
+        
+        # Проверяем черный список
+        for blacklisted in PDF_URL_BLACKLIST:
+            if blacklisted.lower() in url_lower:
+                logger.warning(f"🚫 URL в черном списке: {url}")
+                return True
+        
+        return False
     
-    def extract_pdfs_algorithm_2_javascript_links(self, case_number):
-        """Алгоритм 2: Извлечение ссылок через JavaScript"""
-        logger.info("🔍 Алгоритм 2: Извлечение ссылок через JavaScript")
+    def _is_case_document_url(self, url):
+        """
+        Проверяет, является ли URL документом дела (а не служебным документом)
         
-        try:
-            # Выполняем JavaScript для поиска PDF ссылок
-            js_code = """
-            var pdfLinks = [];
+        Args:
+            url: URL для проверки
             
-            // Поиск в data-атрибутах
-            var elements = document.querySelectorAll('[data-pdf], [data-file], [data-document]');
-            elements.forEach(function(el) {
-                ['data-pdf', 'data-file', 'data-document'].forEach(function(attr) {
-                    var value = el.getAttribute(attr);
-                    if (value && value.includes('.pdf')) {
-                        pdfLinks.push(value);
-                    }
-                });
-            });
-            
-            // Поиск в onclick событиях
-            var onclickElements = document.querySelectorAll('[onclick*="pdf"], [onclick*="download"]');
-            onclickElements.forEach(function(el) {
-                var onclick = el.getAttribute('onclick');
-                var match = onclick.match(/['"]([^'"]*\.pdf[^'"]*)['"]/);
-                if (match) {
-                    pdfLinks.push(match[1]);
-                }
-            });
-            
-            // Поиск в скрытых формах
-            var forms = document.querySelectorAll('form');
-            forms.forEach(function(form) {
-                var inputs = form.querySelectorAll('input[type="hidden"]');
-                inputs.forEach(function(input) {
-                    var value = input.value;
-                    if (value && value.includes('.pdf')) {
-                        pdfLinks.push(value);
-                    }
-                });
-            });
-            
-            return pdfLinks;
-            """
-            
-            pdf_links = self.driver.execute_script(js_code)
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через JavaScript")
-            return self._download_files(pdf_links, "algorithm_2")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 2: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_3_api_calls(self, case_number):
-        """Алгоритм 3: Поиск API вызовов для получения PDF"""
-        logger.info("🔍 Алгоритм 3: Поиск API вызовов")
+        Returns:
+            True если это документ дела
+        """
+        if not url:
+            return False
         
-        try:
-            # Перехватываем сетевые запросы
-            self.driver.execute_cdp_cmd('Network.enable', {})
-            
-            # Ищем элементы, которые могут вызывать API
-            api_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[onclick*="ajax"], [onclick*="fetch"], [onclick*="XMLHttpRequest"]')
-            
-            pdf_links = []
-            for element in api_elements:
-                try:
-                    # Кликаем и ждем ответа
-                    element.click()
-                    time.sleep(2)
-                    
-                    # Получаем логи сети
-                    logs = self.driver.get_log('performance')
-                    for log in logs:
-                        message = json.loads(log['message'])
-                        if message['message']['method'] == 'Network.responseReceived':
-                            url = message['message']['params']['response']['url']
-                            if '.pdf' in url.lower():
-                                pdf_links.append(url)
-                                
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка при обработке API элемента: {e}")
-                    continue
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через API")
-            return self._download_files(pdf_links, "algorithm_3")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 3: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_4_dynamic_content(self, case_number):
-        """Алгоритм 4: Поиск динамически загружаемого контента"""
-        logger.info("🔍 Алгоритм 4: Поиск динамического контента")
+        url_lower = url.lower()
         
-        try:
-            # Ждем загрузки динамического контента
-            time.sleep(3)
-            
-            # Прокручиваем страницу для загрузки ленивого контента
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
-            
-            # Ищем элементы с lazy loading
-            lazy_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[data-src*=".pdf"], [data-lazy*=".pdf"], [loading="lazy"]')
-            
-            pdf_links = []
-            for element in lazy_elements:
-                # Прокручиваем к элементу
-                self.driver.execute_script("arguments[0].scrollIntoView();", element)
-                time.sleep(1)
-                
-                # Получаем src после загрузки
-                src = element.get_attribute('src') or element.get_attribute('data-src')
-                if src and '.pdf' in src.lower():
-                    pdf_links.append(src)
-            
-            # Также ищем в iframe
-            iframes = self.driver.find_elements(By.TAG_NAME, 'iframe')
-            for iframe in iframes:
-                try:
-                    self.driver.switch_to.frame(iframe)
-                    iframe_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href*=".pdf"]')
-                    for link in iframe_links:
-                        href = link.get_attribute('href')
-                        if href:
-                            pdf_links.append(href)
-                    self.driver.switch_to.default_content()
-                except Exception as e:
-                    self.driver.switch_to.default_content()
-                    continue
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок в динамическом контенте")
-            return self._download_files(pdf_links, "algorithm_4")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 4: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_5_form_submission(self, case_number):
-        """Алгоритм 5: Отправка форм для получения PDF"""
-        logger.info("🔍 Алгоритм 5: Отправка форм")
-        
-        try:
-            pdf_links = []
-            
-            # Ищем формы с PDF
-            forms = self.driver.find_elements(By.TAG_NAME, 'form')
-            for form in forms:
-                try:
-                    # Ищем скрытые поля с PDF ссылками
-                    hidden_inputs = form.find_elements(By.CSS_SELECTOR, 'input[type="hidden"]')
-                    for input_elem in hidden_inputs:
-                        value = input_elem.get_attribute('value')
-                        if value and '.pdf' in value.lower():
-                            pdf_links.append(value)
-                    
-                    # Пробуем отправить форму
-                    submit_btn = form.find_element(By.CSS_SELECTOR, 'input[type="submit"], button[type="submit"]')
-                    if submit_btn:
-                        submit_btn.click()
-                        time.sleep(3)
-                        
-                        # Ищем новые PDF ссылки после отправки формы
-                        new_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href*=".pdf"]')
-                        for link in new_links:
-                            href = link.get_attribute('href')
-                            if href and href not in pdf_links:
-                                pdf_links.append(href)
-                                
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка при обработке формы: {e}")
-                    continue
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через формы")
-            return self._download_files(pdf_links, "algorithm_5")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 5: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_6_network_analysis(self, case_number):
-        """Алгоритм 6: Анализ сетевого трафика"""
-        logger.info("🔍 Алгоритм 6: Анализ сетевого трафика")
-        
-        try:
-            # Включаем перехват сетевых запросов
-            self.driver.execute_cdp_cmd('Network.enable', {})
-            
-            # Выполняем действия, которые могут вызвать загрузку PDF
-            actions = [
-                "window.scrollTo(0, document.body.scrollHeight);",
-                "document.querySelectorAll('a').forEach(a => a.click());",
-                "document.querySelectorAll('button').forEach(b => b.click());"
-            ]
-            
-            pdf_links = []
-            for action in actions:
-                try:
-                    self.driver.execute_script(action)
-                    time.sleep(2)
-                    
-                    # Анализируем сетевые запросы
-                    logs = self.driver.get_log('performance')
-                    for log in logs:
-                        try:
-                            message = json.loads(log['message'])
-                            if message['message']['method'] == 'Network.responseReceived':
-                                url = message['message']['params']['response']['url']
-                                if '.pdf' in url.lower():
-                                    pdf_links.append(url)
-                        except:
-                            continue
-                            
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка при выполнении действия: {e}")
-                    continue
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через анализ сети")
-            return self._download_files(pdf_links, "algorithm_6")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 6: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_7_content_parsing(self, case_number):
-        """Алгоритм 7: Парсинг HTML контента"""
-        logger.info("🔍 Алгоритм 7: Парсинг HTML контента")
-        
-        try:
-            # Получаем HTML контент
-            html_content = self.driver.page_source
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
-            pdf_links = []
-            
-            # Ищем все ссылки с PDF
-            links = soup.find_all('a', href=re.compile(r'\.pdf', re.IGNORECASE))
-            for link in links:
-                href = link.get('href')
-                if href:
-                    pdf_links.append(href)
-            
-            # Ищем в data-атрибутах
-            elements_with_data = soup.find_all(attrs={'data-pdf': True})
-            for element in elements_with_data:
-                data_pdf = element.get('data-pdf')
-                if data_pdf:
-                    pdf_links.append(data_pdf)
-            
-            # Ищем в JavaScript коде
-            scripts = soup.find_all('script')
-            for script in scripts:
-                if script.string:
-                    js_matches = re.findall(r'["\']([^"\']*\.pdf[^"\']*)["\']', script.string)
-                    pdf_links.extend(js_matches)
-            
-            # Ищем в комментариях HTML
-            comments = soup.find_all(string=lambda text: isinstance(text, str) and '.pdf' in text)
-            for comment in comments:
-                matches = re.findall(r'https?://[^\s]+\.pdf', comment)
-                pdf_links.extend(matches)
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через парсинг HTML")
-            return self._download_files(pdf_links, "algorithm_7")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 7: {e}")
-            return []
-    
-    def extract_pdfs_algorithm_8_advanced_selenium(self, case_number):
-        """Алгоритм 8: Продвинутые методы Selenium"""
-        logger.info("🔍 Алгоритм 8: Продвинутые методы Selenium")
-        
-        try:
-            pdf_links = []
-            
-            # Используем ActionChains для сложных взаимодействий
-            from selenium.webdriver.common.action_chains import ActionChains
-            actions = ActionChains(self.driver)
-            
-            # Ищем элементы с hover эффектами
-            hover_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[onmouseover], [onmouseenter], .hover, .tooltip')
-            
-            for element in hover_elements:
-                try:
-                    actions.move_to_element(element).perform()
-                    time.sleep(1)
-                    
-                    # Ищем появившиеся PDF ссылки
-                    new_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href*=".pdf"]')
-                    for link in new_links:
-                        href = link.get_attribute('href')
-                        if href and href not in pdf_links:
-                            pdf_links.append(href)
-                            
-                except Exception as e:
-                    continue
-            
-            # Ищем элементы с двойным кликом
-            double_click_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[ondblclick], .double-click')
-            
-            for element in double_click_elements:
-                try:
-                    actions.double_click(element).perform()
-                    time.sleep(2)
-                    
-                    # Ищем новые PDF ссылки
-                    new_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href*=".pdf"]')
-                    for link in new_links:
-                        href = link.get_attribute('href')
-                        if href and href not in pdf_links:
-                            pdf_links.append(href)
-                            
-                except Exception as e:
-                    continue
-            
-            # Ищем элементы с правым кликом
-            right_click_elements = self.driver.find_elements(By.CSS_SELECTOR, 
-                '[oncontextmenu], .context-menu')
-            
-            for element in right_click_elements:
-                try:
-                    actions.context_click(element).perform()
-                    time.sleep(1)
-                    
-                    # Ищем в контекстном меню
-                    context_links = self.driver.find_elements(By.CSS_SELECTOR, 
-                        '.context-menu a[href*=".pdf"], .dropdown a[href*=".pdf"]')
-                    for link in context_links:
-                        href = link.get_attribute('href')
-                        if href and href not in pdf_links:
-                            pdf_links.append(href)
-                            
-                except Exception as e:
-                    continue
-            
-            logger.info(f"📄 Найдено {len(pdf_links)} ссылок через продвинутые методы")
-            return self._download_files(pdf_links, "algorithm_8")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка в алгоритме 8: {e}")
-            return []
-    
-    def _download_files(self, pdf_links, algorithm_name):
-        """Скачивание найденных PDF файлов"""
-        downloaded_files = []
-        
-        for i, link in enumerate(pdf_links):
-            try:
-                # Очищаем ссылку
-                if link.startswith('//'):
-                    link = 'https:' + link
-                elif link.startswith('/'):
-                    link = self.driver.current_url.split('/')[0] + '//' + self.driver.current_url.split('/')[2] + link
-                elif not link.startswith('http'):
-                    link = urljoin(self.driver.current_url, link)
-                
-                # Генерируем имя файла
-                filename = f"{algorithm_name}_file_{i+1}.pdf"
-                filepath = os.path.join(self.files_dir, filename)
-                
-                # Скачиваем файл
-                response = requests.get(link, timeout=30)
-                if response.status_code == 200 and response.content:
-                    with open(filepath, 'wb') as f:
-                        f.write(response.content)
-                    
-                    # Проверяем, что файл действительно PDF
-                    if filepath.endswith('.pdf') and len(response.content) > 1000:
-                        downloaded_files.append(filepath)
-                        logger.info(f"✅ Скачан: {filename} ({len(response.content)} байт)")
-                    else:
-                        os.remove(filepath)
-                        logger.warning(f"⚠️ Файл {filename} не является PDF или слишком мал")
-                else:
-                    logger.warning(f"⚠️ Не удалось скачать {link}: HTTP {response.status_code}")
-                    
-            except Exception as e:
-                logger.error(f"❌ Ошибка при скачивании {link}: {e}")
-                continue
-        
-        return downloaded_files
-    
-    def run_all_algorithms(self, case_number):
-        """Запуск всех алгоритмов извлечения PDF"""
-        logger.info("🚀 Запуск всех алгоритмов извлечения PDF")
-        
-        all_downloaded_files = []
-        algorithms = [
-            self.extract_pdfs_algorithm_1_direct_links,
-            self.extract_pdfs_algorithm_2_javascript_links,
-            self.extract_pdfs_algorithm_3_api_calls,
-            self.extract_pdfs_algorithm_4_dynamic_content,
-            self.extract_pdfs_algorithm_5_form_submission,
-            self.extract_pdfs_algorithm_6_network_analysis,
-            self.extract_pdfs_algorithm_7_content_parsing,
-            self.extract_pdfs_algorithm_8_advanced_selenium
+        # Позитивные индикаторы документа дела
+        case_indicators = [
+            'document/pdf',
+            'kad/pdfdocument',
+            'pdfdocument',
+            'document/getpdf',
+            'getpdf',
+            '/card/',
+            'caseid',
+            'documentid'
         ]
         
-        for i, algorithm in enumerate(algorithms, 1):
+        for indicator in case_indicators:
+            if indicator in url_lower:
+                logger.info(f"✅ Документ дела: {url}")
+                return True
+        
+        # Если нет явных индикаторов, но есть GUID-подобные структуры
+        import re
+        guid_pattern = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+        if re.search(guid_pattern, url_lower, re.IGNORECASE):
+            logger.info(f"✅ Документ с GUID: {url}")
+            return True
+        
+        logger.debug(f"⚠️ Не похоже на документ дела: {url}")
+        return False
+    
+    def find_pdf_url_direct(self, page_url):
+        """
+        Алгоритм 1: Поиск прямого URL PDF файла через анализ страницы
+        Улучшенный поиск для kad.arbitr.ru
+        """
+        logger.info("🔍 АЛГОРИТМ 1: Поиск прямого URL PDF файла")
+        
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            response = requests.get(page_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            logger.info(f"📄 Анализируем HTML страницы (размер: {len(response.text)} символов)")
+            
+            # Расширенные паттерны поиска PDF URL
+            pdf_patterns = [
+                # Прямые ссылки на PDF
+                r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'src=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'url["\']?:\s*["\']([^"\']+\.pdf[^"\']*)["\']',
+                r'file["\']?:\s*["\']([^"\']+\.pdf[^"\']*)["\']',
+                r'data-pdf=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'data-file=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'data-url=["\']([^"\']*\.pdf[^"\']*)["\']',
+                
+                # Специфичные для kad.arbitr.ru паттерны
+                r'Document/Pdf[^"\']*',
+                r'Kad/PdfDocument[^"\']*',
+                r'PdfDocument[^"\']*',
+                r'Document/GetPdf[^"\']*',
+                r'GetPdf[^"\']*',
+                
+                # JavaScript переменные
+                r'var\s+\w*[Pp]df\w*\s*=\s*["\']([^"\']+)["\']',
+                r'let\s+\w*[Pp]df\w*\s*=\s*["\']([^"\']+)["\']',
+                r'const\s+\w*[Pp]df\w*\s*=\s*["\']([^"\']+)["\']',
+                
+                # JSON данные
+                r'"url":\s*["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'"src":\s*["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'"file":\s*["\']([^"\']*\.pdf[^"\']*)["\']',
+                
+                # onclick события
+                r'onclick=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'onclick=["\']([^"\']*Document/Pdf[^"\']*)["\']',
+                r'onclick=["\']([^"\']*Kad/PdfDocument[^"\']*)["\']'
+            ]
+            
+            found_urls = []
+            
+            for i, pattern in enumerate(pdf_patterns):
+                try:
+                    matches = re.findall(pattern, response.text, re.IGNORECASE)
+                    if matches:
+                        logger.info(f"🔍 Паттерн {i+1} нашел {len(matches)} совпадений")
+                        for match in matches:
+                            if isinstance(match, tuple):
+                                match = match[0] if match[0] else match[1]
+                            
+                            # Очищаем URL
+                            url = match.strip()
+                            if url and len(url) > 5:  # Минимальная длина URL
+                                found_urls.append(url)
+                                logger.info(f"📎 Найден URL: {url}")
+                except Exception as e:
+                    logger.debug(f"Ошибка в паттерне {i+1}: {e}")
+                    continue
+            
+            # Обрабатываем найденные URL
+            if found_urls:
+                # Убираем дубликаты
+                unique_urls = list(set(found_urls))
+                logger.info(f"✅ Найдено {len(unique_urls)} уникальных PDF URL")
+                
+                downloaded_files = []
+                for i, pdf_url in enumerate(unique_urls):
+                    try:
+                        # Преобразуем относительные URL в абсолютные
+                        if not pdf_url.startswith('http'):
+                            if pdf_url.startswith('/'):
+                                base_url = '/'.join(page_url.split('/')[:3])
+                                pdf_url = base_url + pdf_url
+                            else:
+                                pdf_url = page_url.rstrip('/') + '/' + pdf_url
+                        
+                        # ПРОВЕРКА ЧЕРНОГО СПИСКА
+                        if self._is_blacklisted_url(pdf_url):
+                            logger.warning(f"🚫 URL {i+1} в черном списке, пропускаем: {pdf_url}")
+                            continue
+                        
+                        # ПРОВЕРКА: Документ дела или служебный документ
+                        if not self._is_case_document_url(pdf_url):
+                            logger.warning(f"⚠️ URL {i+1} не похож на документ дела, пропускаем: {pdf_url}")
+                            continue
+                        
+                        logger.info(f"📥 Попытка скачивания URL {i+1}: {pdf_url}")
+                        files = self._download_pdf_direct(pdf_url, f"direct_url_{i+1}", "ALGORITHM_1")
+                        if files:
+                            downloaded_files.extend(files)
+                            logger.info(f"✅ URL {i+1} успешно скачан")
+                        else:
+                            logger.warning(f"⚠️ URL {i+1} не удалось скачать")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка скачивания URL {i+1}: {e}")
+                        continue
+                
+                return downloaded_files
+            else:
+                logger.warning("⚠️ АЛГОРИТМ 1: Прямые URL PDF не найдены")
+                return []
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 1: {e}")
+            return []
+    
+    def extract_pdf_via_selenium(self, page_url):
+        """
+        Алгоритм 2: Извлечение PDF через Selenium автоматизацию
+        Улучшенный для работы с Shadow DOM и iframe
+        """
+        logger.info("🔍 АЛГОРИТМ 2: Извлечение PDF через Selenium")
+        
+        try:
+            # Используем существующий driver вместо создания нового
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем загрузки страницы
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            downloaded_files = []
+            
+            # Метод 1: Поиск через JavaScript в Shadow DOM
             try:
-                logger.info(f"🔄 Запуск алгоритма {i}/8")
-                files = algorithm(case_number)
-                all_downloaded_files.extend(files)
-                logger.info(f"✅ Алгоритм {i} завершен: найдено {len(files)} файлов")
+                logger.info("🔄 Поиск PDF через JavaScript в Shadow DOM")
+                
+                # Выполняем JavaScript для поиска PDF в Shadow DOM
+                js_script = """
+                function findPdfInShadowDOM() {
+                    console.log('Поиск PDF в Shadow DOM...');
+                    
+                    // Ищем pdf-viewer элемент
+                    const pdfViewer = document.querySelector('pdf-viewer');
+                    console.log('pdf-viewer найден:', !!pdfViewer);
+                    
+                    if (pdfViewer && pdfViewer.shadowRoot) {
+                        // Ищем embed в Shadow DOM pdf-viewer
+                        const embed = pdfViewer.shadowRoot.querySelector('embed[type="application/x-google-chrome-pdf"]');
+                        console.log('embed в Shadow DOM найден:', !!embed);
+                        
+                        if (embed) {
+                            const originalUrl = embed.getAttribute('original-url');
+                            console.log('original-url в Shadow DOM:', originalUrl);
+                            return originalUrl;
+                        }
+                    }
+                    
+                    // Ищем embed в основном DOM
+                    const embed = document.querySelector('embed[type="application/x-google-chrome-pdf"]');
+                    console.log('embed в основном DOM найден:', !!embed);
+                    
+                    if (embed) {
+                        const originalUrl = embed.getAttribute('original-url');
+                        console.log('original-url в основном DOM:', originalUrl);
+                        return originalUrl;
+                    }
+                    
+                    // Поиск по всем iframe
+                    const iframes = document.querySelectorAll('iframe');
+                    console.log('Найдено iframe:', iframes.length);
+                    
+                    for (let i = 0; i < iframes.length; i++) {
+                        const iframe = iframes[i];
+                        const src = iframe.getAttribute('src');
+                        console.log('iframe', i, 'src:', src);
+                        
+                        if (src && src !== 'about:blank' && (src.includes('pdf') || src.includes('Document'))) {
+                            return src;
+                        }
+                    }
+                    
+                    return null;
+                }
+                
+                return findPdfInShadowDOM();
+                """
+                
+                pdf_url = self.driver.execute_script(js_script)
+                
+                if pdf_url:
+                    logger.info(f"✅ Найден PDF URL через JavaScript: {pdf_url}")
+                    files = self._download_pdf_direct(pdf_url, "selenium_js", "ALGORITHM_2")
+                    if files:
+                        downloaded_files.extend(files)
+                else:
+                    logger.warning("⚠️ PDF URL не найден через JavaScript")
+                    
             except Exception as e:
-                logger.error(f"❌ Ошибка в алгоритме {i}: {e}")
-                continue
+                logger.warning(f"⚠️ Ошибка поиска через JavaScript: {e}")
+            
+            # Метод 2: Поиск через анализ iframe
+            try:
+                logger.info("🔄 Поиск PDF через анализ iframe")
+                
+                iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+                logger.info(f"📄 Найдено {len(iframes)} iframe элементов")
+                
+                for i, iframe in enumerate(iframes):
+                    try:
+                        iframe_src = iframe.get_attribute('src')
+                        logger.info(f"iframe {i} src: {iframe_src}")
+                        
+                        # Обрабатываем iframe даже с пустым src (динамическая загрузка)
+                        if iframe_src == "" or iframe_src == "about:blank":
+                            logger.info(f"🔄 iframe {i} имеет пустой src, ждем динамической загрузки...")
+                            
+                            # Ждем динамической загрузки контента
+                            time.sleep(3)
+                            
+                            # Проверяем, изменился ли src
+                            new_src = iframe.get_attribute('src')
+                            if new_src and new_src != "about:blank":
+                                logger.info(f"✅ iframe {i} src изменился на: {new_src}")
+                                iframe_src = new_src
+                        
+                        if iframe_src and iframe_src != "about:blank":
+                            # Переключаемся на iframe
+                            self.driver.switch_to.frame(iframe)
+                            
+                            # Ждем загрузки контента
+                            time.sleep(2)
+                            
+                            # Получаем текущий URL
+                            current_url = self.driver.current_url
+                            logger.info(f"iframe {i} current URL: {current_url}")
+                            
+                            # Если URL содержит PDF или Document
+                            if "pdf" in current_url.lower() or "Document" in current_url or "Pdf" in current_url:
+                                logger.info(f"✅ Найден PDF URL в iframe {i}: {current_url}")
+                                files = self._download_pdf_direct(current_url, f"selenium_iframe_{i}", "ALGORITHM_2")
+                                if files:
+                                    downloaded_files.extend(files)
+                            
+                            # Возвращаемся к основному контенту
+                            self.driver.switch_to.default_content()
+                        else:
+                            # Пробуем переключиться на iframe с пустым src для поиска PDF
+                            try:
+                                self.driver.switch_to.frame(iframe)
+                                time.sleep(2)
+                                
+                                # Ищем PDF элементы внутри iframe
+                                pdf_elements = self.driver.find_elements(By.CSS_SELECTOR, 
+                                    "a[href*='pdf'], a[href*='Document'], embed[type*='pdf']"
+                                )
+                                
+                                if pdf_elements:
+                                    logger.info(f"✅ Найдено {len(pdf_elements)} PDF элементов в iframe {i}")
+                                    for j, element in enumerate(pdf_elements):
+                                        href = element.get_attribute('href')
+                                        if href:
+                                            files = self._download_pdf_direct(href, f"iframe_element_{i}_{j}", "ALGORITHM_2")
+                                            if files:
+                                                downloaded_files.extend(files)
+                                
+                                self.driver.switch_to.default_content()
+                                
+                            except Exception as e:
+                                logger.debug(f"Ошибка обработки пустого iframe {i}: {e}")
+                                try:
+                                    self.driver.switch_to.default_content()
+                                except:
+                                    pass
+                            
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка работы с iframe {i}: {e}")
+                        # Возвращаемся к основному контенту
+                        try:
+                            self.driver.switch_to.default_content()
+                        except:
+                            pass
+                        continue
+                        
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка анализа iframe: {e}")
+            
+            # Метод 3: Поиск через анализ DOM элементов
+            try:
+                logger.info("🔄 Поиск PDF через анализ DOM элементов")
+                
+                # Ищем все элементы, которые могут содержать PDF ссылки
+                pdf_elements = self.driver.find_elements(By.CSS_SELECTOR, 
+                    "a[href*='pdf'], a[href*='Document'], a[href*='Pdf'], "
+                    "[onclick*='pdf'], [onclick*='Document'], [onclick*='Pdf'], "
+                    "embed[type*='pdf'], object[type*='pdf']"
+                )
+                
+                logger.info(f"📄 Найдено {len(pdf_elements)} потенциальных PDF элементов")
+                
+                for i, element in enumerate(pdf_elements):
+                    try:
+                        # Получаем href
+                        href = element.get_attribute('href')
+                        if href and ('pdf' in href.lower() or 'Document' in href or 'Pdf' in href):
+                            logger.info(f"✅ Найден PDF элемент {i+1}: {href}")
+                            files = self._download_pdf_direct(href, f"dom_element_{i+1}", "ALGORITHM_2")
+                            if files:
+                                downloaded_files.extend(files)
+                        
+                        # Получаем onclick
+                        onclick = element.get_attribute('onclick')
+                        if onclick and ('pdf' in onclick.lower() or 'Document' in onclick or 'Pdf' in onclick):
+                            # Извлекаем URL из onclick
+                            import re
+                            url_match = re.search(r"['\"]([^'\"]*Document[^'\"]*)['\"]", onclick)
+                            if url_match:
+                                url = url_match.group(1)
+                                logger.info(f"✅ Найден PDF в onclick {i+1}: {url}")
+                                files = self._download_pdf_direct(url, f"onclick_{i+1}", "ALGORITHM_2")
+                                if files:
+                                    downloaded_files.extend(files)
+                                    
+                    except Exception as e:
+                        logger.debug(f"Ошибка обработки элемента {i+1}: {e}")
+                        continue
+                        
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка анализа DOM элементов: {e}")
+            
+            if downloaded_files:
+                logger.info(f"✅ АЛГОРИТМ 2 завершен: найдено {len(downloaded_files)} файлов")
+            else:
+                logger.warning("⚠️ АЛГОРИТМ 2 не дал результатов")
+            
+            return downloaded_files
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 2: {e}")
+            return []
+    
+    def find_pdf_in_network_requests(self, page_url):
+        """
+        Алгоритм 3: Перехват сетевых запросов
+        Улучшенный с перехватом ДО загрузки страницы
+        """
+        logger.info("🔍 АЛГОРИТМ 3: Перехват сетевых запросов")
+        
+        try:
+            # Используем существующий driver
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            # ВАЖНО: Сначала настраиваем перехват, ПОТОМ загружаем страницу
+            logger.info("🕸️ Настройка перехвата запросов ПЕРЕД загрузкой страницы")
+            
+            # Устанавливаем JavaScript перехватчик ДО загрузки страницы
+            setup_script = """
+            // Создаем массив для хранения перехваченных URL
+            window.interceptedPdfUrls = [];
+            
+            // ЧЕРНЫЙ СПИСОК - документы, которые НЕ нужно перехватывать
+            const blacklist = [
+                'Content/Политика конфиденциальности.pdf',
+                'privacy',
+                'policy',
+                'terms',
+                'agreement',
+                'cookie',
+                'help',
+                'manual',
+                'instruction'
+            ];
+            
+            // Функция проверки черного списка
+            function isBlacklisted(url) {
+                const urlLower = url.toLowerCase();
+                for (let item of blacklist) {
+                    if (urlLower.includes(item.toLowerCase())) {
+                        console.log('🚫 URL в черном списке:', url);
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // Функция проверки, является ли URL документом дела
+            function isCaseDocument(url) {
+                const urlLower = url.toLowerCase();
+                const indicators = [
+                    'document/pdf',
+                    'pdfdocument',
+                    'getpdf',
+                    '/card/',
+                    'caseid',
+                    'documentid'
+                ];
+                
+                for (let indicator of indicators) {
+                    if (urlLower.includes(indicator)) {
+                        return true;
+                    }
+                }
+                
+                // Проверяем GUID
+                const guidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+                return guidPattern.test(url);
+            }
+            
+            // Перехватываем fetch
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const url = args[0];
+                if (typeof url === 'string' && (url.includes('pdf') || url.includes('Document') || url.includes('Pdf'))) {
+                    // Проверяем черный список и релевантность
+                    if (!isBlacklisted(url) && isCaseDocument(url)) {
+                        window.interceptedPdfUrls.push(url);
+                        console.log('✅ Перехвачен fetch:', url);
+                    } else {
+                        console.log('⚠️ Пропущен fetch:', url);
+                    }
+                }
+                return originalFetch.apply(this, args);
+            };
+            
+            // Перехватываем XMLHttpRequest
+            const originalOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                if (typeof url === 'string' && (url.includes('pdf') || url.includes('Document') || url.includes('Pdf'))) {
+                    // Проверяем черный список и релевантность
+                    if (!isBlacklisted(url) && isCaseDocument(url)) {
+                        window.interceptedPdfUrls.push(url);
+                        console.log('✅ Перехвачен XHR:', url);
+                    } else {
+                        console.log('⚠️ Пропущен XHR:', url);
+                    }
+                }
+                return originalOpen.apply(this, [method, url, ...args]);
+            };
+            
+            console.log('✅ Перехватчики с фильтрацией установлены');
+            """
+            
+            self.driver.execute_script(setup_script)
+            logger.info("✅ Перехватчики установлены")
+            
+            # ТЕПЕРЬ загружаем страницу (перехват уже активен)
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем загрузки страницы
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            # Ждем сетевых запросов
+            logger.info("⏳ Ожидание сетевых запросов (5 сек)...")
+            time.sleep(5)
+            
+            # ОБНОВЛЯЕМ страницу для повторного перехвата
+            logger.info("🔄 Обновляем страницу для перехвата запросов...")
+            self.driver.refresh()
+            
+            # Ждем загрузки после обновления
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            # Ждем еще немного для накопления запросов
+            logger.info("⏳ Ожидание запросов после обновления (5 сек)...")
+            time.sleep(5)
+            
+            # Получаем перехваченные URL из JavaScript
+            try:
+                # Получаем массив перехваченных URL
+                pdf_urls = self.driver.execute_script("return window.interceptedPdfUrls || [];")
+                logger.info(f"📊 Перехвачено {len(pdf_urls)} URL через JavaScript")
+                
+                # Дополнительно ищем в уже загруженных ресурсах
+                try:
+                    # Получаем все ссылки на странице
+                    all_links = self.driver.find_elements(By.TAG_NAME, "a")
+                    for link in all_links:
+                        href = link.get_attribute('href')
+                        if href and ('pdf' in href.lower() or 'Document' in href or 'Pdf' in href):
+                            # ПРОВЕРКА ЧЕРНОГО СПИСКА
+                            if self._is_blacklisted_url(href):
+                                logger.debug(f"🚫 Ссылка в черном списке: {href}")
+                                continue
+                            
+                            if href not in pdf_urls:
+                                pdf_urls.append(href)
+                                logger.info(f"✅ Найден PDF ссылка: {href}")
+                except Exception as e:
+                    logger.debug(f"Ошибка поиска ссылок: {e}")
+                
+                # Убираем дубликаты
+                unique_pdf_urls = list(set(pdf_urls))
+                logger.info(f"📄 Найдено {len(unique_pdf_urls)} уникальных PDF URL в network")
+                
+                # Скачиваем найденные PDF
+                downloaded_files = []
+                for i, pdf_url in enumerate(unique_pdf_urls):
+                    try:
+                        # ПРОВЕРКА ЧЕРНОГО СПИСКА
+                        if self._is_blacklisted_url(pdf_url):
+                            logger.warning(f"🚫 PDF {i+1} в черном списке, пропускаем: {pdf_url}")
+                            continue
+                        
+                        # ПРОВЕРКА: Документ дела или служебный документ
+                        if not self._is_case_document_url(pdf_url):
+                            logger.warning(f"⚠️ PDF {i+1} не похож на документ дела, пропускаем: {pdf_url}")
+                            continue
+                        
+                        logger.info(f"📥 Скачивание PDF {i+1}: {pdf_url}")
+                        files = self._download_pdf_direct(pdf_url, f"network_{i+1}", "ALGORITHM_3")
+                        if files:
+                            downloaded_files.extend(files)
+                            logger.info(f"✅ PDF {i+1} успешно скачан")
+                        else:
+                            logger.warning(f"⚠️ PDF {i+1} не удалось скачать")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка скачивания PDF {i+1}: {e}")
+                        continue
+                
+                if downloaded_files:
+                    logger.info(f"✅ АЛГОРИТМ 3 завершен: найдено {len(downloaded_files)} файлов")
+                else:
+                    logger.warning("⚠️ АЛГОРИТМ 3 не дал результатов")
+                
+                return downloaded_files
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка анализа network logs: {e}")
+                return []
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 3: {e}")
+            return []
+    
+    def find_pdf_via_api_requests(self, page_url):
+        """
+        Алгоритм 4: Поиск PDF через API запросы
+        Специально для kad.arbitr.ru
+        """
+        logger.info("🔍 АЛГОРИТМ 4: Поиск PDF через API запросы")
+        
+        try:
+            # Используем существующий driver
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем загрузки страницы
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            downloaded_files = []
+            
+            # Метод 1: Поиск через JavaScript API
+            try:
+                logger.info("🔄 Поиск PDF через JavaScript API")
+                
+                # Выполняем JavaScript для поиска API endpoints
+                js_script = """
+                function findPdfApiEndpoints() {
+                    console.log('Поиск API endpoints для PDF...');
+                    
+                    // Ищем все ссылки и кнопки
+                    const links = document.querySelectorAll('a, button, [onclick]');
+                    const apiEndpoints = [];
+                    
+                    for (let link of links) {
+                        const href = link.getAttribute('href');
+                        const onclick = link.getAttribute('onclick');
+                        
+                        // Проверяем href
+                        if (href && (href.includes('Document') || href.includes('Pdf') || href.includes('GetPdf'))) {
+                            apiEndpoints.push(href);
+                            console.log('Найден API endpoint в href:', href);
+                        }
+                        
+                        // Проверяем onclick
+                        if (onclick && (onclick.includes('Document') || onclick.includes('Pdf') || onclick.includes('GetPdf'))) {
+                            // Извлекаем URL из onclick
+                            const urlMatch = onclick.match(/['"]([^'"]*Document[^'"]*)['"]/);
+                            if (urlMatch) {
+                                apiEndpoints.push(urlMatch[1]);
+                                console.log('Найден API endpoint в onclick:', urlMatch[1]);
+                            }
+                        }
+                    }
+                    
+                    // Ищем в JavaScript переменных
+                    const scripts = document.querySelectorAll('script');
+                    for (let script of scripts) {
+                        if (script.textContent) {
+                            const content = script.textContent;
+                            
+                            // Ищем URL в JavaScript коде
+                            const urlMatches = content.match(/['"]([^'"]*Document[^'"]*)['"]/g);
+                            if (urlMatches) {
+                                for (let match of urlMatches) {
+                                    const url = match.replace(/['"]/g, '');
+                                    if (url.includes('Document') || url.includes('Pdf')) {
+                                        apiEndpoints.push(url);
+                                        console.log('Найден API endpoint в JS:', url);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    return [...new Set(apiEndpoints)]; // Убираем дубликаты
+                }
+                
+                return findPdfApiEndpoints();
+                """
+                
+                api_endpoints = self.driver.execute_script(js_script)
+                
+                if api_endpoints:
+                    logger.info(f"✅ Найдено {len(api_endpoints)} API endpoints")
+                    
+                    for i, endpoint in enumerate(api_endpoints):
+                        try:
+                            # Преобразуем относительные URL в абсолютные
+                            if not endpoint.startswith('http'):
+                                if endpoint.startswith('/'):
+                                    base_url = '/'.join(page_url.split('/')[:3])
+                                    full_url = base_url + endpoint
+                                else:
+                                    full_url = page_url.rstrip('/') + '/' + endpoint
+                            else:
+                                full_url = endpoint
+                            
+                            logger.info(f"📥 Попытка API запроса {i+1}: {full_url}")
+                            files = self._download_pdf_direct(full_url, f"api_{i+1}", "ALGORITHM_4")
+                            if files:
+                                downloaded_files.extend(files)
+                                logger.info(f"✅ API запрос {i+1} успешен")
+                            else:
+                                logger.warning(f"⚠️ API запрос {i+1} не дал результатов")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Ошибка API запроса {i+1}: {e}")
+                            continue
+                else:
+                    logger.warning("⚠️ API endpoints не найдены")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка поиска API endpoints: {e}")
+            
+            # Метод 2: Прямые API запросы к известным endpoints
+            try:
+                logger.info("🔄 Прямые API запросы к известным endpoints")
+                
+                # Извлекаем ID дела из URL
+                case_id = None
+                if '/Card/' in page_url:
+                    case_id = page_url.split('/Card/')[-1].split('/')[0]
+                    logger.info(f"📋 Найден ID дела: {case_id}")
+                
+                if case_id:
+                    # Известные API endpoints для kad.arbitr.ru
+                    api_endpoints = [
+                        f"/Document/Pdf/{case_id}",
+                        f"/Kad/PdfDocument/{case_id}",
+                        f"/Document/GetPdf/{case_id}",
+                        f"/api/Document/Pdf/{case_id}",
+                        f"/api/Kad/PdfDocument/{case_id}",
+                        f"/Document/Download/{case_id}",
+                        f"/Kad/Download/{case_id}"
+                    ]
+                    
+                    base_url = '/'.join(page_url.split('/')[:3])
+                    
+                    for i, endpoint in enumerate(api_endpoints):
+                        try:
+                            full_url = base_url + endpoint
+                            logger.info(f"📥 Прямой API запрос {i+1}: {full_url}")
+                            
+                            files = self._download_pdf_direct(full_url, f"direct_api_{i+1}", "ALGORITHM_4")
+                            if files:
+                                downloaded_files.extend(files)
+                                logger.info(f"✅ Прямой API запрос {i+1} успешен")
+                            else:
+                                logger.warning(f"⚠️ Прямой API запрос {i+1} не дал результатов")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Ошибка прямого API запроса {i+1}: {e}")
+                            continue
+                else:
+                    logger.warning("⚠️ ID дела не найден, пропускаем прямые API запросы")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка прямых API запросов: {e}")
+            
+            if downloaded_files:
+                logger.info(f"✅ АЛГОРИТМ 4 завершен: найдено {len(downloaded_files)} файлов")
+            else:
+                logger.warning("⚠️ АЛГОРИТМ 4 не дал результатов")
+            
+            return downloaded_files
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 4: {e}")
+            return []
+    
+    def comprehensive_pdf_extraction(self, page_url):
+        """
+        Алгоритм 5: Комплексный подход
+        Основан на complex.py
+        """
+        logger.info("🔍 АЛГОРИТМ 5: Комплексный подход")
+        
+        try:
+            all_files = []
+            
+            # 1. Пытаемся найти прямой URL через анализ страницы
+            logger.info("🔄 Комплексный подход: Поиск прямого URL")
+            direct_files = self.find_pdf_url_direct(page_url)
+            if direct_files:
+                all_files.extend(direct_files)
+                logger.info(f"✅ Комплексный подход: прямой URL найден {len(direct_files)} файлов")
+                # ЛОГИРОВАНИЕ: Проверяем реально ли скачаны файлы
+                for f in direct_files:
+                    if os.path.exists(f):
+                        size = os.path.getsize(f)
+                        logger.info(f"📦 Файл существует: {os.path.basename(f)} ({size} байт)")
+                    else:
+                        logger.error(f"❌ Файл НЕ существует: {f}")
+            
+            # 2. Пытаемся найти через сетевые запросы Selenium
+            logger.info("🔄 Комплексный подход: Перехват сетевых запросов")
+            network_files = self.find_pdf_in_network_requests(page_url)
+            if network_files:
+                all_files.extend(network_files)
+                logger.info(f"✅ Комплексный подход: сетевые запросы найдены {len(network_files)} файлов")
+                # ЛОГИРОВАНИЕ: Проверяем реально ли скачаны файлы
+                for f in network_files:
+                    if os.path.exists(f):
+                        size = os.path.getsize(f)
+                        logger.info(f"📦 Файл существует: {os.path.basename(f)} ({size} байт)")
+                    else:
+                        logger.error(f"❌ Файл НЕ существует: {f}")
+            
+            # 3. Пытаемся извлечь через Selenium автоматизацию
+            logger.info("🔄 Комплексный подход: Selenium автоматизация")
+            selenium_files = self.extract_pdf_via_selenium(page_url)
+            if selenium_files:
+                all_files.extend(selenium_files)
+                logger.info(f"✅ Комплексный подход: Selenium найден {len(selenium_files)} файлов")
+                # ЛОГИРОВАНИЕ: Проверяем реально ли скачаны файлы
+                for f in selenium_files:
+                    if os.path.exists(f):
+                        size = os.path.getsize(f)
+                        logger.info(f"📦 Файл существует: {os.path.basename(f)} ({size} байт)")
+                    else:
+                        logger.error(f"❌ Файл НЕ существует: {f}")
+            
+            # 4. Пытаемся найти через API запросы
+            logger.info("🔄 Комплексный подход: API запросы")
+            api_files = self.find_pdf_via_api_requests(page_url)
+            if api_files:
+                all_files.extend(api_files)
+                logger.info(f"✅ Комплексный подход: API запросы найдены {len(api_files)} файлов")
+                # ЛОГИРОВАНИЕ: Проверяем реально ли скачаны файлы
+                for f in api_files:
+                    if os.path.exists(f):
+                        size = os.path.getsize(f)
+                        logger.info(f"📦 Файл существует: {os.path.basename(f)} ({size} байт)")
+                    else:
+                        logger.error(f"❌ Файл НЕ существует: {f}")
+            
+            if all_files:
+                logger.info(f"✅ АЛГОРИТМ 5 завершен: найдено {len(all_files)} файлов")
+                return all_files
+            else:
+                logger.warning("⚠️ АЛГОРИТМ 5 не дал результатов")
+                return []
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 5: {e}")
+            return []
+    
+    def _download_pdf_direct(self, pdf_url, method_name, algorithm_name="unknown"):
+        """
+        Скачивает PDF по прямому URL с указанием алгоритма в названии
+        """
+        try:
+            # Проверяем, что URL не пустой и валидный
+            if not pdf_url or len(pdf_url.strip()) < 5:
+                logger.warning(f"⚠️ Пустой или невалидный URL: {pdf_url}")
+                return []
+            
+            # Нормализуем URL
+            pdf_url = pdf_url.strip()
+            if not pdf_url.startswith('http'):
+                logger.warning(f"⚠️ Относительный URL не поддерживается: {pdf_url}")
+                return []
+            
+            # ЛОГИРОВАНИЕ URL страницы
+            try:
+                current_page_url = self.driver.current_url if self.driver else "N/A"
+                logger.info(f"📍 [URL LOG] Текущая страница: {current_page_url}")
+                logger.info(f"📥 [URL LOG] Скачивание с URL: {pdf_url}")
+                logger.info(f"🔧 [URL LOG] Алгоритм: {algorithm_name}, Метод: {method_name}")
+            except Exception as e:
+                logger.debug(f"Ошибка получения текущего URL: {e}")
+            
+            logger.info(f"📥 Скачивание PDF через {algorithm_name}: {pdf_url}")
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/pdf,application/octet-stream,*/*',
+                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            response = requests.get(pdf_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            # Проверяем, что это действительно PDF
+            content_type = response.headers.get('content-type', '').lower()
+            if 'pdf' not in content_type and not response.content.startswith(b'%PDF'):
+                logger.warning(f"⚠️ Файл не является PDF (Content-Type: {content_type}): {pdf_url}")
+                return []
+            
+            # Проверяем размер файла
+            if len(response.content) < 1000:  # Минимум 1KB
+                logger.warning(f"⚠️ Файл слишком мал ({len(response.content)} байт): {pdf_url}")
+                return []
+            
+            # Генерируем уникальное имя файла с хешем URL для избежания дубликатов
+            import hashlib
+            url_hash = hashlib.md5(pdf_url.encode()).hexdigest()[:8]
+            filename = f"{algorithm_name}_{method_name}_{url_hash}.pdf"
+            filepath = os.path.join(self.files_dir, filename)
+            
+            # Проверяем, не скачивали ли мы уже этот файл
+            if os.path.exists(filepath):
+                existing_size = os.path.getsize(filepath)
+                if existing_size == len(response.content):
+                    logger.info(f"ℹ️ Файл уже существует с тем же размером: {filename}")
+                    return [filepath]
+            
+            # Сохраняем файл
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+            
+            final_filename = os.path.basename(filepath)
+            logger.info(f"✅ PDF сохранен через {algorithm_name}: {final_filename} ({len(response.content)} байт)")
+            return [filepath]
+            
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"⚠️ Ошибка HTTP запроса через {algorithm_name} {pdf_url}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"❌ Ошибка скачивания через {algorithm_name} {pdf_url}: {e}")
+            return []
+    
+    def run_all_algorithms(self, case_number):
+        """
+        Запуск всех алгоритмов извлечения PDF последовательно
+        Теперь ВСЕ алгоритмы выполняются, даже если первый успешен
+        """
+        logger.info("🚀 Запуск ВСЕХ алгоритмов извлечения PDF")
+        
+        # Получаем URL текущей страницы
+        try:
+            page_url = self.driver.current_url
+            logger.info(f"📍 Текущая страница: {page_url}")
+        except:
+            logger.error("❌ Не удалось получить URL текущей страницы")
+            return []
+        
+        # ПРОВЕРКА: Если мы уже на странице PDF документа, попробуем скачать напрямую
+        if '/Document/Pdf/' in page_url or page_url.endswith('.pdf'):
+            logger.info("🎯 Обнаружена прямая ссылка на PDF документ!")
+            logger.info(f"🔗 URL документа: {page_url}")
+            
+            # Попробуем скачать прямым запросом
+            try:
+                logger.info("📥 Попытка прямого скачивания по URL страницы...")
+                direct_files = self._download_pdf_direct(page_url, "direct_page_url", "DIRECT_LINK")
+                if direct_files:
+                    logger.info(f"✅ Прямое скачивание успешно: {len(direct_files)} файлов")
+                    # Продолжаем с остальными алгоритмами для максимального покрытия
+            except Exception as e:
+                logger.warning(f"⚠️ Прямое скачивание не удалось: {e}")
+    
+        all_downloaded_files = []
+        
+        # Алгоритм 1: Поиск прямого URL
+        try:
+            logger.info("🔄 АЛГОРИТМ 1: Поиск прямого URL")
+            files = self.find_pdf_url_direct(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 1 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 1 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 1: {e}")
+        
+        # Алгоритм 2: Selenium автоматизация
+        try:
+            logger.info("🔄 АЛГОРИТМ 2: Selenium автоматизация")
+            files = self.extract_pdf_via_selenium(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 2 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 2 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 2: {e}")
+        
+        # Алгоритм 3: Перехват сетевых запросов
+        try:
+            logger.info("🔄 АЛГОРИТМ 3: Перехват сетевых запросов")
+            files = self.find_pdf_in_network_requests(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 3 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 3 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 3: {e}")
+        
+        # Алгоритм 4: API запросы
+        try:
+            logger.info("🔄 АЛГОРИТМ 4: API запросы")
+            files = self.find_pdf_via_api_requests(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 4 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 4 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 4: {e}")
+        
+        # Алгоритм 5: Комплексный подход
+        try:
+            logger.info("🔄 АЛГОРИТМ 5: Комплексный подход")
+            files = self.comprehensive_pdf_extraction(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 5 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 5 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 5: {e}")
+        
+        # Алгоритм 6: Продвинутые стратегии
+        try:
+            logger.info("🔄 АЛГОРИТМ 6: Продвинутые стратегии")
+            files = self.run_advanced_strategies(case_number, page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 6 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 6 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 6: {e}")
+        
+        # Алгоритм 7: PDF.js API
+        try:
+            logger.info("🔄 АЛГОРИТМ 7: PDF.js API")
+            files = self.extract_pdf_from_pdfjs_api(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 7 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 7 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 7: {e}")
+        
+        # Алгоритм 8: Blob URL перехват
+        try:
+            logger.info("🔄 АЛГОРИТМ 8: Blob URL перехват")
+            files = self.extract_pdf_via_blob_interception(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 8 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 8 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 8: {e}")
+        
+        # Алгоритм 9: Кнопка "Скачать" + Мониторинг
+        try:
+            logger.info("🔄 АЛГОРИТМ 9: Кнопка 'Скачать' + Мониторинг")
+            files = self.download_via_button_and_monitoring(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 9 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 9 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 9: {e}")
+        
+        # Алгоритм 10: Print to PDF
+        try:
+            logger.info("🔄 АЛГОРИТМ 10: Print to PDF")
+            files = self.download_via_print_to_pdf(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 10 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 10 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 10: {e}")
+        
+        # Алгоритм 11: Ctrl+S + автоматизация диалога
+        try:
+            logger.info("🔄 АЛГОРИТМ 11: Ctrl+S + автоматизация диалога")
+            files = self.download_via_ctrl_s_dialog(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 11 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 11 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 11: {e}")
+        
+        # Алгоритм 12: Методы из autoKad.py
+        try:
+            logger.info("🔄 АЛГОРИТМ 12: Методы из autoKad.py")
+            files = self.download_via_autokad_methods(page_url)
+            if files:
+                all_downloaded_files.extend(files)
+                logger.info(f"✅ АЛГОРИТМ 12 завершен: найдено {len(files)} файлов")
+            else:
+                logger.info("⚠️ АЛГОРИТМ 12 не дал результатов")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 12: {e}")
         
         # Удаляем дубликаты
         unique_files = list(set(all_downloaded_files))
-        logger.info(f"🎉 Всего найдено уникальных файлов: {len(unique_files)}")
+        logger.info(f"🎉 ВСЕ АЛГОРИТМЫ ЗАВЕРШЕНЫ! Всего найдено уникальных файлов: {len(unique_files)}")
         
         return unique_files
+    
+    def run_advanced_strategies(self, case_number, case_url):
+        """
+        Запуск продвинутых стратегий извлечения PDF
+        Алгоритм 6: Управляемые HTTP запросы + Перехват сетевого трафика
+        ОПЦИОНАЛЬНЫЙ: Требует установки Playwright
+        """
+        logger.info("🚀 АЛГОРИТМ 6: Продвинутые стратегии")
+        
+        try:
+            # Проверяем доступность Playwright
+            try:
+                import playwright
+                playwright_available = True
+                logger.info("✅ Playwright доступен")
+            except ImportError:
+                playwright_available = False
+                logger.warning("⚠️ Playwright не установлен - используем только HTTP стратегию")
+                logger.info("💡 Для установки Playwright выполните:")
+                logger.info("   1) pip install playwright>=1.40.0")
+                logger.info("   2) python -m playwright install chromium")
+                logger.info("   ИЛИ запустите: python backend/install_playwright.py")
+            
+            # Импортируем новые стратегии
+            from advanced_pdf_strategies import AdvancedPDFExtractor
+            
+            all_files = []
+            
+            # Стратегия 1: Управляемые HTTP запросы (ВСЕГДА доступна)
+            try:
+                logger.info("🔄 Стратегия 1: Управляемые HTTP запросы")
+                
+                # Получаем HTML содержимое и cookies из текущего драйвера
+                html_content = self.driver.page_source
+                cookies = self.driver.get_cookies()
+                
+                # Создаем экстрактор
+                advanced_extractor = AdvancedPDFExtractor(self.files_dir)
+                
+                # Извлекаем PDF через HTTP
+                http_files = advanced_extractor.extract_with_controlled_http(
+                    case_url, html_content, cookies
+                )
+                
+                if http_files:
+                    all_files.extend(http_files)
+                    logger.info(f"✅ HTTP стратегия: {len(http_files)} файлов")
+                else:
+                    logger.info("⚠️ HTTP стратегия не дала результатов")
+                    
+            except Exception as e:
+                logger.error(f"❌ Ошибка HTTP стратегии: {e}")
+            
+            # Стратегия 2: Перехват сетевого трафика (Playwright) - ОПЦИОНАЛЬНАЯ
+            if playwright_available:
+                try:
+                    logger.info("🔄 Стратегия 2: Перехват сетевого трафика")
+                    
+                    from playwright_integration import PlaywrightPDFExtractorSync
+                    
+                    # Создаем Playwright экстрактор
+                    playwright_extractor = PlaywrightPDFExtractorSync(self.files_dir)
+                    
+                    # Извлекаем PDF через перехват
+                    interception_files = playwright_extractor.extract_pdfs(case_url, timeout=30)
+                    
+                    if interception_files:
+                        all_files.extend(interception_files)
+                        logger.info(f"✅ Перехват стратегия: {len(interception_files)} файлов")
+                    else:
+                        logger.info("⚠️ Перехват стратегия не дала результатов")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Ошибка перехвата: {e}")
+            else:
+                logger.info("⏭️ Стратегия 2 пропущена (Playwright не установлен)")
+            
+            # Убираем дубликаты
+            unique_files = list(set(all_files))
+            
+            if unique_files:
+                logger.info(f"✅ АЛГОРИТМ 6 завершен: найдено {len(unique_files)} файлов")
+            else:
+                logger.warning("⚠️ АЛГОРИТМ 6 не дал результатов")
+            
+            return unique_files
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 6: {e}")
+            logger.info("💡 Для использования продвинутых стратегий установите Playwright")
+            return []
+    
+    def extract_pdf_from_pdfjs_api(self, page_url):
+        """
+        Алгоритм 7: Извлечение PDF через PDF.js API
+        Самый надежный метод для страниц с PDF.js
+        """
+        logger.info("🔍 АЛГОРИТМ 7: Извлечение через PDF.js API")
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем загрузки PDF.js
+            logger.info("⏳ Ожидание загрузки PDF.js (10 сек)...")
+            time.sleep(10)
+            
+            # JavaScript для извлечения PDF через PDF.js API
+            js_extract_pdf = """
+            return new Promise((resolve) => {
+                try {
+                    console.log('🔍 Поиск PDF.js...');
+                    
+                    // Проверяем наличие PDF.js
+                    if (typeof PDFViewerApplication === 'undefined') {
+                        console.log('❌ PDFViewerApplication не найден');
+                        resolve(null);
+                        return;
+                    }
+                    
+                    console.log('✅ PDFViewerApplication найден');
+                    
+                    // Ждем инициализации PDF.js
+                    PDFViewerApplication.initializedPromise.then(() => {
+                        console.log('✅ PDF.js инициализирован');
+                        
+                        const pdfDocument = PDFViewerApplication.pdfDocument;
+                        
+                        if (!pdfDocument) {
+                            console.log('❌ PDF document не загружен');
+                            resolve(null);
+                            return;
+                        }
+                        
+                        console.log('✅ PDF document найден, извлекаем данные...');
+                        console.log('📄 Страниц:', pdfDocument.numPages);
+                        
+                        // Получаем данные PDF
+                        pdfDocument.getData().then((data) => {
+                            console.log('✅ Данные получены:', data.length, 'байт');
+                            
+                            // Преобразуем в массив для передачи в Python
+                            resolve({
+                                data: Array.from(data),
+                                numPages: pdfDocument.numPages,
+                                fingerprint: pdfDocument.fingerprints ? pdfDocument.fingerprints[0] : 'unknown'
+                            });
+                        }).catch((error) => {
+                            console.error('❌ Ошибка getData:', error);
+                            resolve(null);
+                        });
+                        
+                    }).catch((error) => {
+                        console.error('❌ Ошибка initializedPromise:', error);
+                        resolve(null);
+                    });
+                    
+                } catch (error) {
+                    console.error('❌ Критическая ошибка:', error);
+                    resolve(null);
+                }
+            });
+            """
+            
+            # Выполняем JavaScript с увеличенным таймаутом
+            logger.info("🔄 Выполнение JavaScript для извлечения PDF...")
+            self.driver.set_script_timeout(60)  # 60 секунд таймаут
+            
+            result = self.driver.execute_async_script(js_extract_pdf)
+            
+            if result and result.get('data'):
+                logger.info(f"✅ PDF данные получены: {len(result['data'])} байт, {result.get('numPages', '?')} страниц")
+                
+                # Сохраняем PDF
+                pdf_bytes = bytes(result['data'])
+                
+                # Проверяем, что это действительно PDF
+                if not pdf_bytes.startswith(b'%PDF'):
+                    logger.warning("⚠️ Данные не являются PDF файлом")
+                    return []
+                
+                import hashlib
+                data_hash = hashlib.md5(pdf_bytes).hexdigest()[:8]
+                filename = f"ALGORITHM_7_pdfjs_api_{data_hash}.pdf"
+                filepath = os.path.join(self.files_dir, filename)
+                
+                with open(filepath, 'wb') as f:
+                    f.write(pdf_bytes)
+                
+                logger.info(f"✅ PDF извлечен через PDF.js API: {filename} ({len(pdf_bytes)} байт, {result.get('numPages')} страниц)")
+                return [filepath]
+            else:
+                logger.warning("⚠️ PDF.js не найден или PDF не загружен")
+                return []
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 7: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return []
+    
+    def extract_pdf_via_blob_interception(self, page_url):
+        """
+        Алгоритм 8: Перехват Blob URL
+        Для динамически генерируемых PDF
+        """
+        logger.info("🔍 АЛГОРИТМ 8: Перехват Blob URL")
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            # Устанавливаем перехватчик ПЕРЕД загрузкой
+            logger.info("🕸️ Настройка Blob перехватчиков...")
+            
+            setup_blob_interceptor = """
+            window.interceptedBlobs = [];
+            window.interceptedBlobUrls = [];
+            
+            console.log('🔧 Установка Blob перехватчиков...');
+            
+            // Перехватываем Blob
+            const originalBlob = window.Blob;
+            window.Blob = function(...args) {
+                const blob = new originalBlob(...args);
+                
+                if (blob.type === 'application/pdf') {
+                    try {
+                        const blobUrl = URL.createObjectURL(blob);
+                        window.interceptedBlobs.push({
+                            url: blobUrl,
+                            size: blob.size,
+                            type: blob.type,
+                            timestamp: Date.now()
+                        });
+                        console.log('✅ PDF Blob перехвачен:', blobUrl, blob.size, 'байт');
+                    } catch (e) {
+                        console.error('Ошибка createObjectURL:', e);
+                    }
+                }
+                
+                return blob;
+            };
+            
+            // Перехватываем URL.createObjectURL
+            const originalCreateObjectURL = URL.createObjectURL;
+            URL.createObjectURL = function(obj) {
+                const url = originalCreateObjectURL(obj);
+                
+                if (obj.type === 'application/pdf') {
+                    window.interceptedBlobUrls.push({
+                        url: url,
+                        size: obj.size,
+                        type: obj.type,
+                        timestamp: Date.now()
+                    });
+                    console.log('✅ PDF ObjectURL перехвачен:', url, obj.size, 'байт');
+                }
+                
+                return url;
+            };
+            
+            console.log('✅ Blob перехватчики установлены');
+            """
+            
+            self.driver.execute_script(setup_blob_interceptor)
+            logger.info("✅ Blob перехватчики установлены")
+            
+            # Загружаем страницу
+            logger.info(f"🌐 Загружаем страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем создания Blob
+            logger.info("⏳ Ожидание создания Blob объектов (10 сек)...")
+            time.sleep(10)
+            
+            # Получаем перехваченные Blob
+            blobs = self.driver.execute_script("return window.interceptedBlobs || [];")
+            blob_urls = self.driver.execute_script("return window.interceptedBlobUrls || [];")
+            
+            all_blobs = blobs + blob_urls
+            
+            if all_blobs:
+                logger.info(f"📄 Перехвачено {len(all_blobs)} Blob объектов")
+                
+                downloaded_files = []
+                
+                for i, blob_info in enumerate(all_blobs):
+                    try:
+                        blob_url = blob_info['url']
+                        blob_size = blob_info.get('size', 0)
+                        
+                        logger.info(f"📥 Извлечение Blob {i+1}: {blob_url} ({blob_size} байт)")
+                        
+                        # Получаем данные Blob через JavaScript
+                        self.driver.set_script_timeout(60)
+                        
+                        pdf_data = self.driver.execute_async_script("""
+                            var callback = arguments[arguments.length - 1];
+                            var blobUrl = arguments[0];
+                            
+                            console.log('Получение Blob данных:', blobUrl);
+                            
+                            fetch(blobUrl)
+                                .then(response => {
+                                    console.log('Response получен');
+                                    return response.arrayBuffer();
+                                })
+                                .then(buffer => {
+                                    console.log('ArrayBuffer получен:', buffer.byteLength, 'байт');
+                                    var bytes = new Uint8Array(buffer);
+                                    callback(Array.from(bytes));
+                                })
+                                .catch(error => {
+                                    console.error('Ошибка получения Blob:', error);
+                                    callback(null);
+                                });
+                        """, blob_url)
+                        
+                        if pdf_data:
+                            # Сохраняем PDF
+                            pdf_bytes = bytes(pdf_data)
+                            
+                            logger.info(f"✅ Blob данные получены: {len(pdf_bytes)} байт")
+                            
+                            # Проверяем, что это PDF
+                            if not pdf_bytes.startswith(b'%PDF'):
+                                logger.warning(f"⚠️ Blob не является PDF файлом")
+                                continue
+                            
+                            import hashlib
+                            data_hash = hashlib.md5(pdf_bytes).hexdigest()[:8]
+                            filename = f"ALGORITHM_8_blob_{data_hash}.pdf"
+                            filepath = os.path.join(self.files_dir, filename)
+                            
+                            with open(filepath, 'wb') as f:
+                                f.write(pdf_bytes)
+                            
+                            downloaded_files.append(filepath)
+                            logger.info(f"✅ Blob извлечен: {filename} ({len(pdf_bytes)} байт)")
+                        else:
+                            logger.warning(f"⚠️ Не удалось получить данные Blob {i+1}")
+                        
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка извлечения Blob {i+1}: {e}")
+                        continue
+                
+                return downloaded_files
+            else:
+                logger.warning("⚠️ Blob объекты не перехвачены")
+                return []
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 8: {e}")
+            return []
+    
+    def download_via_button_and_monitoring(self, page_url):
+        """
+        Алгоритм 9: Кнопка "Скачать" + Мониторинг Downloads
+        Универсальный метод с автоматизацией диалога
+        """
+        logger.info("🔍 АЛГОРИТМ 9: Кнопка 'Скачать' + Мониторинг")
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            time.sleep(5)
+            
+            # Список возможных селекторов кнопки "Скачать"
+            download_button_selectors = [
+                # Текстовые селекторы
+                "//button[contains(text(), 'Скачать')]",
+                "//a[contains(text(), 'Скачать')]",
+                "//button[contains(text(), 'Download')]",
+                "//a[contains(text(), 'Download')]",
+                "//button[contains(@title, 'Скачать')]",
+                "//a[contains(@title, 'Скачать')]",
+                # CSS селекторы
+                "button[title*='Скачать']",
+                "a[title*='Скачать']",
+                "button[aria-label*='Скачать']",
+                "a[aria-label*='Скачать']",
+                ".download-button",
+                "#download-btn",
+                "button[download]",
+                "a[download]",
+                "[onclick*='download']",
+                "[onclick*='Download']",
+                # Иконки
+                "button svg.download-icon",
+                "button i.fa-download"
+            ]
+            
+            download_btn = None
+            used_selector = None
+            
+            for selector in download_button_selectors:
+                try:
+                    if selector.startswith('//'):
+                        # XPath селектор
+                        download_btn = WebDriverWait(self.driver, 3).until(
+                            EC.element_to_be_clickable((By.XPATH, selector))
+                        )
+                    else:
+                        # CSS селектор
+                        download_btn = WebDriverWait(self.driver, 3).until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                        )
+                    
+                    used_selector = selector
+                    logger.info(f"✅ Найдена кнопка 'Скачать': {selector}")
+                    break
+                    
+                except:
+                    continue
+            
+            if not download_btn:
+                logger.warning("⚠️ Кнопка 'Скачать' не найдена")
+                return []
+            
+            # Получаем Downloads директорию из __init__
+            downloads_dir = getattr(self, 'downloads_dir', None)
+            if not downloads_dir or not os.path.exists(downloads_dir):
+                # Fallback: используем стандартную папку Downloads
+                import platform
+                if platform.system() == "Windows":
+                    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                else:
+                    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                
+                logger.info(f"📁 Используем Downloads: {downloads_dir}")
+            
+            # Получаем список файлов ДО скачивания
+            before_files = set(os.listdir(downloads_dir)) if os.path.exists(downloads_dir) else set()
+            logger.info(f"📊 Файлов в Downloads ДО: {len(before_files)}")
+            
+            # Кликаем по кнопке
+            logger.info("🖱️ Кликаем по кнопке 'Скачать'...")
+            try:
+                download_btn.click()
+                logger.info("✅ Клик выполнен")
+            except Exception as e:
+                logger.warning(f"⚠️ Обычный клик не сработал, пробуем JavaScript: {e}")
+                self.driver.execute_script("arguments[0].click();", download_btn)
+                logger.info("✅ JavaScript клик выполнен")
+            
+            # Ждем появления диалога
+            time.sleep(2)
+            
+            # Автоматически нажимаем Enter для подтверждения
+            try:
+                import pyautogui
+                logger.info("⌨️ Автоматическое подтверждение диалога (Enter)...")
+                pyautogui.press('enter')
+                time.sleep(1)
+                logger.info("✅ Enter нажат")
+            except ImportError:
+                logger.warning("⚠️ PyAutoGUI не установлен, пропускаем автоподтверждение")
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка автоподтверждения: {e}")
+            
+            # Мониторим появление нового файла
+            logger.info("⏳ Мониторинг папки Downloads (30 сек)...")
+            max_wait = 30
+            start_time = time.time()
+            check_count = 0
+            
+            while time.time() - start_time < max_wait:
+                if not os.path.exists(downloads_dir):
+                    time.sleep(0.5)
+                    continue
+                
+                current_files = set(os.listdir(downloads_dir))
+                new_files = current_files - before_files
+                
+                check_count += 1
+                if check_count % 10 == 0:
+                    logger.info(f"🔄 Проверка #{check_count}: новых файлов {len(new_files)}")
+                
+                # Ищем PDF файлы
+                for filename in new_files:
+                    if filename.endswith('.pdf') and not filename.endswith('.crdownload'):
+                        source_path = os.path.join(downloads_dir, filename)
+                        
+                        # Проверяем размер (чтобы скачивание завершилось)
+                        try:
+                            file_size = os.path.getsize(source_path)
+                            if file_size > 1000:  # Минимум 1KB
+                                logger.info(f"✅ Найден новый PDF: {filename} ({file_size} байт)")
+                                
+                                # Перемещаем файл
+                                import hashlib
+                                file_hash = hashlib.md5(filename.encode()).hexdigest()[:8]
+                                target_filename = f"ALGORITHM_9_button_{file_hash}.pdf"
+                                target_path = os.path.join(self.files_dir, target_filename)
+                                
+                                import shutil
+                                shutil.move(source_path, target_path)
+                                
+                                logger.info(f"✅ PDF скачан через кнопку: {target_filename} ({file_size} байт)")
+                                return [target_path]
+                        except Exception as e:
+                            logger.debug(f"Ошибка проверки файла {filename}: {e}")
+                            continue
+                
+                time.sleep(0.5)
+            
+            logger.warning(f"⚠️ Файл не появился в Downloads за {max_wait} секунд")
+            logger.info(f"📊 Файлов в Downloads ПОСЛЕ: {len(current_files) if 'current_files' in locals() else '?'}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 9: {e}")
+            return []
+    
+    def download_via_print_to_pdf(self, page_url):
+        """
+        Алгоритм 10: Print to PDF
+        Запасной метод - использует встроенную функцию Chrome
+        """
+        logger.info("🔍 АЛГОРИТМ 10: Print to PDF")
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            logger.info(f"🌐 Переходим на страницу: {page_url}")
+            self.driver.get(page_url)
+            
+            # Ждем загрузки страницы
+            logger.info("⏳ Ожидание загрузки страницы (5 сек)...")
+            time.sleep(5)
+            
+            # Используем CDP для печати в PDF
+            logger.info("🖨️ Печать страницы в PDF через CDP...")
+            
+            result = self.driver.execute_cdp_cmd('Page.printToPDF', {
+                'printBackground': True,
+                'landscape': False,
+                'paperWidth': 8.27,  # A4 ширина в дюймах
+                'paperHeight': 11.69,  # A4 высота в дюймах
+                'marginTop': 0,
+                'marginBottom': 0,
+                'marginLeft': 0,
+                'marginRight': 0,
+                'preferCSSPageSize': True,
+                'displayHeaderFooter': False
+            })
+            
+            # Декодируем base64
+            import base64
+            pdf_data = base64.b64decode(result['data'])
+            
+            logger.info(f"✅ PDF создан через Print: {len(pdf_data)} байт")
+            
+            # Проверяем, что это PDF
+            if not pdf_data.startswith(b'%PDF'):
+                logger.warning("⚠️ Print результат не является PDF")
+                return []
+            
+            # Сохраняем
+            import hashlib
+            data_hash = hashlib.md5(pdf_data).hexdigest()[:8]
+            filename = f"ALGORITHM_10_print_{data_hash}.pdf"
+            filepath = os.path.join(self.files_dir, filename)
+            
+            with open(filepath, 'wb') as f:
+                f.write(pdf_data)
+            
+            logger.info(f"✅ PDF через Print: {filename} ({len(pdf_data)} байт)")
+            return [filepath]
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в АЛГОРИТМЕ 10: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return []
+    
+    def download_via_ctrl_s_dialog(self, page_url):
+        """
+        Алгоритм 11: Ctrl+S + автоматизация диалога Windows
+        Упрощенный алгоритм с конкретными путями
+        """
+        logger.info("🔍 АЛГОРИТМ 11: Ctrl+S + автоматизация диалога")
+        logger.info("=" * 80)
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            # Логируем текущую страницу
+            try:
+                current_url = self.driver.current_url
+                logger.info(f"📍 [CTRL+S] Текущая страница: {current_url}")
+            except:
+                logger.info(f"📍 [CTRL+S] Целевая страница: {page_url}")
+            
+            # Конкретные пути
+            downloads_dir = r"D:\DOWNLOADS"
+            target_dir = r"D:\CODE\sinichka_python\github_pages\darkus079.github.io\backend\files"
+            
+            logger.info(f"📁 [CTRL+S] Папка для скачивания: {downloads_dir}")
+            logger.info(f"📁 [CTRL+S] Целевая папка: {target_dir}")
+            
+            # Создаем папки если их нет
+            os.makedirs(downloads_dir, exist_ok=True)
+            os.makedirs(target_dir, exist_ok=True)
+            
+            # Проверяем доступность PyAutoGUI
+            try:
+                import pyautogui
+                logger.info("✅ [CTRL+S] PyAutoGUI доступен")
+            except ImportError:
+                logger.warning("⚠️ [CTRL+S] PyAutoGUI не установлен")
+                logger.info("💡 Установите: pip install pyautogui>=0.9.54")
+                return []
+            
+            # Получаем список файлов ДО сохранения
+            before_files = set(os.listdir(downloads_dir))
+            logger.info(f"📊 [CTRL+S] Файлов в D:\\DOWNLOADS ДО: {len(before_files)}")
+            
+            # ШАГ 1: Нажимаем Ctrl+S
+            logger.info("=" * 80)
+            logger.info("ШАГ 1: Нажатие Ctrl+S")
+            logger.info("=" * 80)
+            
+            try:
+                # Пробуем через Selenium
+                from selenium.webdriver.common.keys import Keys
+                from selenium.webdriver.common.action_chains import ActionChains
+                
+                self.driver.switch_to.window(self.driver.current_window_handle)
+                actions = ActionChains(self.driver)
+                actions.key_down(Keys.CONTROL).send_keys('s').key_up(Keys.CONTROL).perform()
+                
+                logger.info("✅ [CTRL+S] Ctrl+S нажат через Selenium")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ [CTRL+S] Selenium не сработал: {e}")
+                logger.info("🔄 [CTRL+S] Пробуем PyAutoGUI...")
+                
+                pyautogui.hotkey('ctrl', 's')
+                logger.info("✅ [CTRL+S] Ctrl+S нажат через PyAutoGUI")
+            
+            # ШАГ 2: Ждем 1 секунду
+            logger.info("=" * 80)
+            logger.info("ШАГ 2: Ожидание диалогового окна (1 сек)")
+            logger.info("=" * 80)
+            time.sleep(1)
+            logger.info("✅ [CTRL+S] Диалоговое окно должно появиться")
+            
+            # ШАГ 3: Нажимаем Enter для сохранения
+            logger.info("=" * 80)
+            logger.info("ШАГ 3: Нажатие Enter для сохранения")
+            logger.info("=" * 80)
+            
+            logger.info("⌨️ [CTRL+S] Нажимаем Enter...")
+            pyautogui.press('enter')
+            logger.info("✅ [CTRL+S] Enter нажат")
+            
+            # ШАГ 4: Пауза для загрузки документа
+            logger.info("=" * 80)
+            logger.info("ШАГ 4: Пауза для загрузки документа")
+            logger.info("=" * 80)
+            
+            pause_duration = 10  # 10 секунд на скачивание
+            logger.info(f"⏳ [CTRL+S] Ожидание скачивания файла ({pause_duration} сек)...")
+            time.sleep(pause_duration)
+            logger.info("✅ [CTRL+S] Ожидание завершено")
+            
+            # ШАГ 5: Поиск файла в D:\DOWNLOADS и перемещение
+            logger.info("=" * 80)
+            logger.info("ШАГ 5: Поиск и перемещение файла")
+            logger.info("=" * 80)
+            
+            logger.info(f"🔍 [CTRL+S] Проверяем папку: {downloads_dir}")
+            
+            if not os.path.exists(downloads_dir):
+                logger.error(f"❌ [CTRL+S] Папка не существует: {downloads_dir}")
+                return []
+            
+            # Получаем новые файлы
+            current_files = set(os.listdir(downloads_dir))
+            new_files = current_files - before_files
+            
+            logger.info(f"📊 [CTRL+S] Файлов в D:\\DOWNLOADS ПОСЛЕ: {len(current_files)}")
+            logger.info(f"📊 [CTRL+S] Новых файлов: {len(new_files)}")
+            
+            if new_files:
+                logger.info(f"📄 [CTRL+S] Список новых файлов:")
+                for idx, fname in enumerate(new_files, 1):
+                    logger.info(f"   {idx}. {fname}")
+            else:
+                logger.warning("⚠️ [CTRL+S] Новых файлов не найдено")
+            
+            # Ищем PDF файлы
+            downloaded_files = []
+            
+            for filename in new_files:
+                logger.info(f"🔍 [CTRL+S] Проверяем файл: {filename}")
+                
+                # Проверяем расширение
+                if not filename.endswith('.pdf'):
+                    logger.debug(f"⏭️ [CTRL+S] Не PDF, пропускаем: {filename}")
+                    continue
+                
+                # Проверяем, что это не временный файл
+                if filename.endswith('.crdownload') or filename.endswith('.tmp'):
+                    logger.debug(f"⏭️ [CTRL+S] Временный файл, пропускаем: {filename}")
+                    continue
+                
+                source_path = os.path.join(downloads_dir, filename)
+                logger.info(f"📂 [CTRL+S] Исходный путь: {source_path}")
+                
+                # Проверяем размер файла
+                try:
+                    file_size = os.path.getsize(source_path)
+                    logger.info(f"📏 [CTRL+S] Размер файла: {file_size} байт")
+                    
+                    if file_size < 1000:  # Минимум 1KB
+                        logger.warning(f"⚠️ [CTRL+S] Файл слишком мал ({file_size} байт), пропускаем")
+                        continue
+                    
+                    logger.info(f"✅ [CTRL+S] Размер файла корректный: {file_size} байт")
+                    
+                except Exception as e:
+                    logger.error(f"❌ [CTRL+S] Ошибка проверки размера: {e}")
+                    continue
+                
+                # Генерируем имя для целевого файла
+                import hashlib
+                file_hash = hashlib.md5(filename.encode()).hexdigest()[:8]
+                target_filename = f"ALGORITHM_11_ctrl_s_{file_hash}.pdf"
+                target_path = os.path.join(target_dir, target_filename)
+                
+                logger.info(f"📂 [CTRL+S] Целевой путь: {target_path}")
+                
+                # Перемещаем файл
+                try:
+                    logger.info(f"🚚 [CTRL+S] Перемещение файла...")
+                    logger.info(f"   ИЗ: {source_path}")
+                    logger.info(f"   В:  {target_path}")
+                    
+                    import shutil
+                    shutil.move(source_path, target_path)
+                    
+                    logger.info(f"✅ [CTRL+S] Файл успешно перемещен!")
+                    
+                    # Проверяем, что файл действительно в целевой папке
+                    if os.path.exists(target_path):
+                        final_size = os.path.getsize(target_path)
+                        logger.info(f"✅ [CTRL+S] Файл существует в целевой папке: {target_filename}")
+                        logger.info(f"📏 [CTRL+S] Финальный размер: {final_size} байт")
+                        logger.info(f"📍 [URL LOG] Сохранено с URL: {page_url}")
+                        
+                        downloaded_files.append(target_path)
+                    else:
+                        logger.error(f"❌ [CTRL+S] Файл не найден в целевой папке!")
+                    
+                except Exception as e:
+                    logger.error(f"❌ [CTRL+S] Ошибка перемещения файла: {e}")
+                    continue
+            
+            if downloaded_files:
+                logger.info("=" * 80)
+                logger.info(f"🎉 [CTRL+S] Успешно скачано {len(downloaded_files)} файлов:")
+                for idx, fpath in enumerate(downloaded_files, 1):
+                    logger.info(f"   {idx}. {os.path.basename(fpath)}")
+                logger.info("=" * 80)
+                return downloaded_files
+            else:
+                logger.warning("=" * 80)
+                logger.warning(f"⚠️ [CTRL+S] Файлы не найдены в D:\\DOWNLOADS")
+                logger.warning(f"📊 [CTRL+S] Проверено: {len(new_files)} новых файлов")
+                logger.warning("=" * 80)
+                return []
+            
+        except Exception as e:
+            logger.error("=" * 80)
+            logger.error(f"❌ [CTRL+S] Критическая ошибка в АЛГОРИТМЕ 11: {e}")
+            import traceback
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            logger.error("=" * 80)
+            return []
+    
+    def download_via_autokad_methods(self, page_url):
+        """
+        Алгоритм 12: Методы из autoKad.py
+        Основан на проверенных методах извлечения текста и обработки документов
+        """
+        logger.info("🔍 АЛГОРИТМ 12: Методы из autoKad.py")
+        logger.info("=" * 80)
+        
+        try:
+            if not self.driver:
+                logger.warning("⚠️ WebDriver не инициализирован")
+                return []
+            
+            # Логируем текущую страницу
+            try:
+                current_url = self.driver.current_url
+                logger.info(f"📍 [AUTOKAD] Текущая страница: {current_url}")
+            except:
+                logger.info(f"📍 [AUTOKAD] Целевая страница: {page_url}")
+            
+            downloaded_files = []
+            
+            # Метод 1: Извлечение через document.querySelector
+            logger.info("🔄 [AUTOKAD] Метод 1: Поиск через document.querySelector")
+            
+            try:
+                # JavaScript для поиска PDF элементов (как в autoKad)
+                js_find_pdf_elements = """
+                const elements = document.querySelectorAll('a[href*=".pdf"], a[href*="document"], a[href*="Document"]');
+                const links = [];
+                
+                elements.forEach(element => {
+                    const href = element.getAttribute('href');
+                    const text = element.textContent.trim();
+                    if (href && text) {
+                        const fullUrl = href.startsWith('http') ? href : 
+                                       (href.startsWith('/') ? 'https://kad.arbitr.ru' + href : 
+                                        window.location.href + '/' + href);
+                        links.push({
+                            url: fullUrl,
+                            text: text
+                        });
+                    }
+                });
+                
+                return links;
+                """
+                
+                pdf_links = self.driver.execute_script(js_find_pdf_elements)
+                
+                if pdf_links:
+                    logger.info(f"✅ [AUTOKAD] Найдено {len(pdf_links)} PDF элементов")
+                    
+                    for i, link_info in enumerate(pdf_links):
+                        url = link_info['url']
+                        text = link_info['text']
+                        
+                        logger.info(f"📄 [AUTOKAD] Элемент {i+1}: {text}")
+                        logger.info(f"🔗 [AUTOKAD] URL: {url}")
+                        
+                        # Проверка черного списка
+                        if self._is_blacklisted_url(url):
+                            logger.warning(f"🚫 [AUTOKAD] URL в черном списке, пропускаем")
+                            continue
+                        
+                        # Проверка документа дела
+                        if not self._is_case_document_url(url):
+                            logger.debug(f"⚠️ [AUTOKAD] Не документ дела, пропускаем")
+                            continue
+                        
+                        # Скачиваем
+                        files = self._download_pdf_direct(url, f"autokad_querySelector_{i+1}", "ALGORITHM_12")
+                        if files:
+                            downloaded_files.extend(files)
+                            logger.info(f"✅ [AUTOKAD] Элемент {i+1} скачан")
+                else:
+                    logger.warning("⚠️ [AUTOKAD] PDF элементы не найдены через querySelector")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ [AUTOKAD] Ошибка метода querySelector: {e}")
+            
+            # Метод 2: Извлечение текста из div.text (как в autoKad)
+            logger.info("🔄 [AUTOKAD] Метод 2: Извлечение через div.text")
+            
+            try:
+                # JavaScript для извлечения текстового содержимого
+                js_extract_text = """
+                const textDiv = document.querySelector('div.text');
+                if (textDiv) {
+                    return {
+                        found: true,
+                        text: textDiv.textContent || textDiv.innerText,
+                        length: (textDiv.textContent || textDiv.innerText).length
+                    };
+                }
+                return { found: false };
+                """
+                
+                text_result = self.driver.execute_script(js_extract_text)
+                
+                if text_result.get('found'):
+                    logger.info(f"✅ [AUTOKAD] Найден div.text с контентом: {text_result['length']} символов")
+                    
+                    # Если нашли текст, значит это страница документа
+                    # Попробуем найти PDF на этой странице
+                    logger.info("🔍 [AUTOKAD] Поиск PDF на странице с текстом...")
+                    
+                    # Ищем все ссылки и элементы с PDF
+                    js_find_pdf_on_text_page = """
+                    const pdfElements = [];
+                    
+                    // Поиск в ссылках
+                    document.querySelectorAll('a').forEach(a => {
+                        const href = a.getAttribute('href');
+                        if (href && (href.includes('.pdf') || href.includes('Document') || href.includes('Pdf'))) {
+                            pdfElements.push({
+                                type: 'link',
+                                url: href.startsWith('http') ? href : 
+                                     (href.startsWith('/') ? 'https://kad.arbitr.ru' + href : window.location.href),
+                                text: a.textContent.trim()
+                            });
+                        }
+                    });
+                    
+                    // Поиск в embed элементах
+                    document.querySelectorAll('embed[type*="pdf"]').forEach(embed => {
+                        const src = embed.getAttribute('src');
+                        if (src) {
+                            pdfElements.push({
+                                type: 'embed',
+                                url: src,
+                                text: 'PDF Embed'
+                            });
+                        }
+                    });
+                    
+                    // Поиск в object элементах
+                    document.querySelectorAll('object[type*="pdf"]').forEach(obj => {
+                        const data = obj.getAttribute('data');
+                        if (data) {
+                            pdfElements.push({
+                                type: 'object',
+                                url: data,
+                                text: 'PDF Object'
+                            });
+                        }
+                    });
+                    
+                    return pdfElements;
+                    """
+                    
+                    pdf_elements = self.driver.execute_script(js_find_pdf_on_text_page)
+                    
+                    if pdf_elements:
+                        logger.info(f"✅ [AUTOKAD] Найдено {len(pdf_elements)} PDF элементов на странице с текстом")
+                        
+                        for i, elem in enumerate(pdf_elements):
+                            url = elem['url']
+                            elem_type = elem['type']
+                            
+                            logger.info(f"📄 [AUTOKAD] Элемент {i+1} ({elem_type}): {url}")
+                            
+                            # Проверки
+                            if self._is_blacklisted_url(url):
+                                continue
+                            if not self._is_case_document_url(url):
+                                continue
+                            
+                            # Скачиваем
+                            files = self._download_pdf_direct(url, f"autokad_text_page_{i+1}", "ALGORITHM_12")
+                            if files:
+                                downloaded_files.extend(files)
+                                
+                else:
+                    logger.info("ℹ️ [AUTOKAD] div.text не найден на странице")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ [AUTOKAD] Ошибка метода div.text: {e}")
+            
+            # Метод 3: Прямое скачивание текущего URL (если это PDF страница)
+            logger.info("🔄 [AUTOKAD] Метод 3: Прямое скачивание текущего URL")
+            
+            try:
+                current_url = self.driver.current_url
+                
+                # Если текущий URL - это PDF документ
+                if '/Document/Pdf/' in current_url or current_url.endswith('.pdf'):
+                    logger.info(f"✅ [AUTOKAD] Текущий URL является PDF документом")
+                    logger.info(f"🔗 [AUTOKAD] URL: {current_url}")
+                    
+                    # Проверки
+                    if not self._is_blacklisted_url(current_url):
+                        if self._is_case_document_url(current_url):
+                            # Скачиваем
+                            files = self._download_pdf_direct(current_url, "autokad_current_url", "ALGORITHM_12")
+                            if files:
+                                downloaded_files.extend(files)
+                                logger.info(f"✅ [AUTOKAD] Текущий URL скачан")
+                        else:
+                            logger.debug("⚠️ [AUTOKAD] Текущий URL не является документом дела")
+                    else:
+                        logger.warning("🚫 [AUTOKAD] Текущий URL в черном списке")
+                else:
+                    logger.debug("ℹ️ [AUTOKAD] Текущий URL не является PDF страницей")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ [AUTOKAD] Ошибка метода текущего URL: {e}")
+            
+            # Метод 4: Использование window.open для обхода блокировок
+            logger.info("🔄 [AUTOKAD] Метод 4: window.open (обход блокировок)")
+            
+            try:
+                # Сохраняем текущее окно
+                original_window = self.driver.current_window_handle
+                
+                # Открываем новое окно (метод из autoKad для обхода блокировок)
+                logger.info("🪟 [AUTOKAD] Открываем новое окно...")
+                self.driver.execute_script("window.open('');")
+                
+                # Переключаемся на новое окно
+                new_window = self.driver.window_handles[-1]
+                self.driver.switch_to.window(new_window)
+                logger.info("✅ [AUTOKAD] Переключились на новое окно")
+                
+                # Загружаем страницу в новом окне
+                logger.info(f"🌐 [AUTOKAD] Загружаем страницу в новом окне: {page_url}")
+                self.driver.get(page_url)
+                time.sleep(5)
+                
+                # Пробуем найти PDF на этой странице
+                new_window_url = self.driver.current_url
+                logger.info(f"📍 [AUTOKAD] URL в новом окне: {new_window_url}")
+                
+                if '/Document/Pdf/' in new_window_url or new_window_url.endswith('.pdf'):
+                    # Проверки и скачивание
+                    if not self._is_blacklisted_url(new_window_url):
+                        if self._is_case_document_url(new_window_url):
+                            files = self._download_pdf_direct(new_window_url, "autokad_new_window", "ALGORITHM_12")
+                            if files:
+                                downloaded_files.extend(files)
+                                logger.info(f"✅ [AUTOKAD] Скачано через новое окно")
+                
+                # Закрываем новое окно и возвращаемся к оригинальному
+                logger.info("🔙 [AUTOKAD] Закрываем новое окно и возвращаемся...")
+                self.driver.close()
+                self.driver.switch_to.window(original_window)
+                logger.info("✅ [AUTOKAD] Вернулись в оригинальное окно")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ [AUTOKAD] Ошибка метода window.open: {e}")
+                # Пытаемся вернуться в оригинальное окно
+                try:
+                    if len(self.driver.window_handles) > 1:
+                        self.driver.switch_to.window(self.driver.window_handles[0])
+                except:
+                    pass
+            
+            # Итоговая статистика
+            if downloaded_files:
+                logger.info("=" * 80)
+                logger.info(f"🎉 [AUTOKAD] Успешно скачано {len(downloaded_files)} файлов:")
+                for idx, fpath in enumerate(downloaded_files, 1):
+                    logger.info(f"   {idx}. {os.path.basename(fpath)}")
+                logger.info("=" * 80)
+                return downloaded_files
+            else:
+                logger.warning("=" * 80)
+                logger.warning("⚠️ [AUTOKAD] Файлы не найдены")
+                logger.warning("=" * 80)
+                return []
+            
+        except Exception as e:
+            logger.error("=" * 80)
+            logger.error(f"❌ [AUTOKAD] Критическая ошибка в АЛГОРИТМЕ 12: {e}")
+            import traceback
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            logger.error("=" * 80)
+            return []
