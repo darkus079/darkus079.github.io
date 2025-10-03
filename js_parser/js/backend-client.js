@@ -227,12 +227,12 @@ class BackendClient {
       const data = await response.json();
       
       // Преобразуем в формат, ожидаемый frontend
-      const files = data.files.map(file => ({
-        name: file.name,
-        size: file.size,
-        url: `${this.baseUrl}/api/download/${encodeURIComponent(file.name)}`,
-        created: file.created,
-        modified: file.modified
+      const files = data.files.map(fileName => ({
+        name: fileName,
+        size: 0, // Размер не доступен через API
+        url: `${this.baseUrl}/api/download/${encodeURIComponent(fileName)}`,
+        created: new Date().toISOString(),
+        modified: new Date().toISOString()
       }));
 
       this.log('📁 Получен список файлов', 'success', `Найдено файлов: ${files.length}`);

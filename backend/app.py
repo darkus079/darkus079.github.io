@@ -252,6 +252,30 @@ async def list_files():
         return {"files": file_names}
     return {"files": []}
 
+@app.get("/api/download/{filename}")
+async def api_download_file(filename: str):
+    """API эндпоинт для скачивания файла"""
+    file_path = os.path.join("files", filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Указанный путь не является файлом")
+    
+    # Проверяем, что файл находится в папке files (безопасность)
+    real_path = os.path.realpath(file_path)
+    real_files_dir = os.path.realpath("files")
+    
+    if not real_path.startswith(real_files_dir):
+        raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/pdf'
+    )
+
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     """Скачивание файла"""
