@@ -247,7 +247,9 @@ async def list_files():
     """API эндпоинт - список доступных файлов"""
     if parser:
         files = parser.get_downloaded_files()
-        return {"files": files}
+        # Преобразуем полные пути в имена файлов для API
+        file_names = [os.path.basename(file_path) for file_path in files]
+        return {"files": file_names}
     return {"files": []}
 
 @app.get("/download/{filename}")
