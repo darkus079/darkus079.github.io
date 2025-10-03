@@ -63,6 +63,15 @@ class BackendClient {
       const result = await this.waitForCompletion();
 
       this.log('✅ ПАРСИНГ ЗАВЕРШЕН', 'success', `Скачано файлов: ${result.files.length}`);
+      
+      console.log('parseCase returning result.files:', result.files);
+      console.log('result.files type:', typeof result.files);
+      console.log('result.files length:', result.files ? result.files.length : 'undefined');
+      
+      if (result.files && result.files.length > 0) {
+        console.log('First file in result.files:', result.files[0], 'type:', typeof result.files[0]);
+      }
+      
       return result.files;
 
     } catch (error) {
@@ -183,6 +192,14 @@ class BackendClient {
           // Получаем список файлов
           const files = await this.getFilesList();
           
+          console.log('waitForCompletion: files from getFilesList:', files);
+          console.log('waitForCompletion: files type:', typeof files);
+          console.log('waitForCompletion: files length:', files ? files.length : 'undefined');
+          
+          if (files && files.length > 0) {
+            console.log('waitForCompletion: first file:', files[0], 'type:', typeof files[0]);
+          }
+          
           return {
             success: status.files_count > 0,
             files: files,
@@ -226,14 +243,39 @@ class BackendClient {
 
       const data = await response.json();
       
+      console.log('API response data:', data);
+      console.log('data.files:', data.files);
+      console.log('data.files type:', typeof data.files);
+      console.log('data.files length:', data.files ? data.files.length : 'undefined');
+      
+      if (data.files && data.files.length > 0) {
+        console.log('First file:', data.files[0], 'type:', typeof data.files[0]);
+      }
+      
       // Преобразуем в формат, ожидаемый frontend
-      const files = data.files.map(fileName => ({
-        name: fileName,
-        size: 0, // Размер не доступен через API
-        url: `${this.baseUrl}/api/download/${encodeURIComponent(fileName)}`,
-        created: new Date().toISOString(),
-        modified: new Date().toISOString()
-      }));
+      const files = data.files.map((fileName, index) => {
+        console.log(`Processing file ${index}:`, fileName, 'type:', typeof fileName);
+        
+        // Проверяем, что fileName является строкой
+        if (typeof fileName !== 'string') {
+          console.error(`File ${index} is not a string:`, fileName, 'type:', typeof fileName);
+          return {
+            name: String(fileName), // Принудительно преобразуем в строку
+            size: 0,
+            url: `${this.baseUrl}/api/download/${encodeURIComponent(String(fileName))}`,
+            created: new Date().toISOString(),
+            modified: new Date().toISOString()
+          };
+        }
+        
+        return {
+          name: fileName,
+          size: 0, // Размер не доступен через API
+          url: `${this.baseUrl}/api/download/${encodeURIComponent(fileName)}`,
+          created: new Date().toISOString(),
+          modified: new Date().toISOString()
+        };
+      });
 
       this.log('📁 Получен список файлов', 'success', `Найдено файлов: ${files.length}`);
       
