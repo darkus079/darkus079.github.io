@@ -245,17 +245,28 @@ async def files_page(request: Request):
 @app.get("/api/files")
 async def list_files():
     """API эндпоинт - список доступных файлов"""
-    if parser:
-        files = parser.get_downloaded_files()
-        # Преобразуем полные пути в имена файлов для API
-        file_names = [os.path.basename(file_path) for file_path in files]
-        return {"files": file_names}
-    return {"files": []}
+    files_dir = "files"
+    file_names = []
+    
+    if os.path.exists(files_dir):
+        try:
+            for filename in os.listdir(files_dir):
+                file_path = os.path.join(files_dir, filename)
+                if os.path.isfile(file_path):
+                    file_names.append(filename)
+        except Exception as e:
+            logger.error(f"Ошибка чтения папки files: {e}")
+    
+    return {"files": file_names}
 
 @app.get("/api/download/{filename}")
 async def api_download_file(filename: str):
     """API эндпоинт для скачивания файла"""
-    file_path = os.path.join("files", filename)
+    import urllib.parse
+    
+    # Декодируем URL-encoded имя файла
+    decoded_filename = urllib.parse.unquote(filename)
+    file_path = os.path.join("files", decoded_filename)
     
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
@@ -270,16 +281,36 @@ async def api_download_file(filename: str):
     if not real_path.startswith(real_files_dir):
         raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
     
+    # Создаем безопасное имя файла для заголовка Content-Disposition
+    # Заменяем кириллические символы на латинские аналоги
+    safe_filename = decoded_filename
+    cyrillic_to_latin = {
+        'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 
+        'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X', 'а': 'a', 'в': 'b', 
+        'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 
+        'т': 't', 'у': 'y', 'х': 'x'
+    }
+    
+    for cyr, lat in cyrillic_to_latin.items():
+        safe_filename = safe_filename.replace(cyr, lat)
+    
     return FileResponse(
         path=file_path,
-        filename=filename,
-        media_type='application/pdf'
+        filename=safe_filename,
+        media_type='application/pdf',
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{urllib.parse.quote(decoded_filename)}"
+        }
     )
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    """Скачивание файла"""
-    file_path = os.path.join("files", filename)
+    """Скачивание файла (устаревший эндпоинт, используйте /api/download/{filename})"""
+    import urllib.parse
+    
+    # Декодируем URL-encoded имя файла
+    decoded_filename = urllib.parse.unquote(filename)
+    file_path = os.path.join("files", decoded_filename)
     
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
@@ -294,10 +325,25 @@ async def download_file(filename: str):
     if not real_path.startswith(real_files_dir):
         raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
     
+    # Создаем безопасное имя файла для заголовка Content-Disposition
+    safe_filename = decoded_filename
+    cyrillic_to_latin = {
+        'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 
+        'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X', 'а': 'a', 'в': 'b', 
+        'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 
+        'т': 't', 'у': 'y', 'х': 'x'
+    }
+    
+    for cyr, lat in cyrillic_to_latin.items():
+        safe_filename = safe_filename.replace(cyr, lat)
+    
     return FileResponse(
         path=file_path,
-        filename=filename,
-        media_type='application/pdf'
+        filename=safe_filename,
+        media_type='application/pdf',
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{urllib.parse.quote(decoded_filename)}"
+        }
     )
 
 @app.get("/clear")

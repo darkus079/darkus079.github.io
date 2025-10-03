@@ -692,6 +692,23 @@
             clearErrorPages();
         });
 
+        // Обработка кнопок скачивания файлов (делегирование событий)
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('download-btn')) {
+                const filename = e.target.getAttribute('data-filename');
+                const url = e.target.getAttribute('data-url');
+                if (filename && url) {
+                    downloadFile(filename, url);
+                }
+            } else if (e.target.classList.contains('download-error-btn')) {
+                const filename = e.target.getAttribute('data-filename');
+                const url = e.target.getAttribute('data-url');
+                if (filename && url) {
+                    downloadErrorPage(filename, url);
+                }
+            }
+        });
+
         // Запуск парсинга
         async function startParsing(caseNumber) {
             try {
@@ -796,7 +813,7 @@
                                     <span class="file-size">${fileSize}</span>
                                 </div>
                             </div>
-                            <button class="download-btn" onclick="downloadFile('${file.name}', '${file.url}')">
+                            <button class="download-btn" data-filename="${file.name}" data-url="${file.url}">
                                 📥 Скачать
                             </button>
                         </div>
@@ -906,7 +923,7 @@
                             Размер: ${formatFileSize(page.size)} | Время: ${page.timestamp}
                         </div>
                     </div>
-                    <button class="download-error-btn" onclick="downloadErrorPage('${page.filename}', '${page.url}')">
+                    <button class="download-error-btn" data-filename="${page.filename}" data-url="${page.url}">
                         📥 Скачать
                     </button>
                 </div>
