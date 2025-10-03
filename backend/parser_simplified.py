@@ -28,7 +28,13 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import tempfile
 import glob
-from pdf_extraction_algorithms import PDFExtractionAlgorithms
+# from pdf_extraction_algorithms import PDFExtractionAlgorithms  # УДАЛЕНО - больше не используем сложные алгоритмы
+from selenium_config import (
+    create_undetected_chrome_options, 
+    create_standard_chrome_options, 
+    get_downloads_directory,
+    move_downloaded_files
+)
 
 UC_AVAILABLE = True
 
@@ -169,69 +175,10 @@ class KadArbitrParser:
             return False
             
         try:
-            logger.info("🤖 Настройка максимально человекоподобного браузера...")
+            logger.info("🤖 Настройка максимально человекоподобного браузера с автоматическим скачиванием PDF...")
             
-            options = uc.ChromeOptions()
-            
-            # Основные антидетект настройки
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-blink-features=AutomationControlled')
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option('useAutomationExtension', False)
-            
-            # Настройки окна
-            options.add_argument('--window-size=1920,1080')
-            options.add_argument('--start-maximized')
-            
-            # Улучшенные настройки стабильности
-            options.add_argument('--disable-web-security')
-            options.add_argument('--disable-features=VizDisplayCompositor')
-            options.add_argument('--disable-ipc-flooding-protection')
-            options.add_argument('--disable-renderer-backgrounding')
-            options.add_argument('--disable-backgrounding-occluded-windows')
-            options.add_argument('--disable-client-side-phishing-detection')
-            options.add_argument('--disable-sync')
-            options.add_argument('--disable-translate')
-            options.add_argument('--disable-background-timer-throttling')
-            options.add_argument('--disable-backgrounding-occluded-windows')
-            options.add_argument('--disable-renderer-backgrounding')
-            
-            # Настройки таймаутов
-            options.add_argument('--timeout=30000')
-            options.add_argument('--page-load-strategy=normal')
-            
-            # Отключение подозрительных функций
-            options.add_argument('--disable-extensions-file-access-check')
-            options.add_argument('--disable-extensions-http-throttling')
-            options.add_argument('--disable-extensions-except=*')
-            options.add_argument('--aggressive-cache-discard')
-            options.add_argument('--disable-background-timer-throttling')
-            options.add_argument('--disable-renderer-backgrounding')
-            options.add_argument('--disable-backgrounding-occluded-windows')
-            options.add_argument('--disable-client-side-phishing-detection')
-            
-            # Человекоподобные предпочтения
-            prefs = {
-                "profile.default_content_setting_values.notifications": 2,
-                "profile.default_content_settings.popups": 0,
-                "profile.managed_default_content_settings.images": 1,
-                "profile.default_content_setting_values.geolocation": 2,
-                "credentials_enable_service": False,
-                "profile.password_manager_enabled": False,
-                "profile.default_content_setting_values.media_stream_mic": 2,
-                "profile.default_content_setting_values.media_stream_camera": 2,
-                "intl.accept_languages": "ru-RU,ru,en-US,en",
-                "profile.default_content_settings.site_engagement": {
-                    "https://kad.arbitr.ru": {"last_engagement_time": time.time()}
-                },
-                # Настройки папки для скачивания
-                "download.default_directory": self.downloads_dir,
-                "download.prompt_for_download": False,
-                "download.directory_upgrade": True,
-                "safebrowsing.enabled": True
-            }
-            options.add_experimental_option("prefs", prefs)
+            # Используем новые настройки для автоматического скачивания PDF
+            options = create_undetected_chrome_options()
             
             # Создаем драйвер
             self.driver = uc.Chrome(options=options, version_main=None)
@@ -273,7 +220,7 @@ class KadArbitrParser:
                 });
             """)
             
-            logger.info("✅ Максимально человекоподобный браузер настроен")
+            logger.info("✅ Максимально человекоподобный браузер с автоматическим скачиванием PDF настроен")
             return True
             
         except ImportError:
@@ -286,45 +233,10 @@ class KadArbitrParser:
     def _init_chrome_webdriver_manager(self):
         """Стандартная инициализация с WebDriverManager и антидетект настройками"""
         try:            
-            logger.info("🌐 Настройка обычного Chrome с антидетект функциями...")
+            logger.info("🌐 Настройка обычного Chrome с антидетект функциями и автоматическим скачиванием PDF...")
             
-            options = Options()
-            
-            # Основные антидетект настройки
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-blink-features=AutomationControlled')
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option('useAutomationExtension', False)
-            
-            # Настройки окна и производительности
-            options.add_argument('--window-size=1920,1080')
-            options.add_argument('--disable-gpu')
-            options.add_argument('--remote-debugging-port=9222')
-            options.add_argument('--disable-web-security')
-            options.add_argument('--disable-features=VizDisplayCompositor')
-            
-            # Отключаем подозрительные функции
-            options.add_argument('--disable-background-timer-throttling')
-            options.add_argument('--disable-renderer-backgrounding')
-            options.add_argument('--disable-backgrounding-occluded-windows')
-            options.add_argument('--disable-client-side-phishing-detection')
-            
-            # Человекоподобные предпочтения
-            prefs = {
-                "profile.default_content_setting_values.notifications": 2,
-                "profile.default_content_settings.popups": 0,
-                "profile.managed_default_content_settings.images": 1,
-                "credentials_enable_service": False,
-                "profile.password_manager_enabled": False,
-                "intl.accept_languages": "ru-RU,ru,en-US,en",
-                # Настройки папки для скачивания
-                "download.default_directory": self.downloads_dir,
-                "download.prompt_for_download": False,
-                "download.directory_upgrade": True,
-                "safebrowsing.enabled": True
-            }
-            options.add_experimental_option("prefs", prefs)
+            # Используем новые настройки для автоматического скачивания PDF
+            options = create_standard_chrome_options()
             
             # Получаем путь к драйверу
             driver_path = ChromeDriverManager().install()
@@ -347,7 +259,7 @@ class KadArbitrParser:
             except Exception as script_error:
                 logger.debug(f"Не удалось выполнить дополнительные скрипты: {script_error}")
             
-            logger.info("✅ Обычный Chrome с антидетект настройками готов")
+            logger.info("✅ Обычный Chrome с антидетект настройками и автоматическим скачиванием PDF готов")
             return True
             
         except Exception as e:
@@ -1148,15 +1060,13 @@ class KadArbitrParser:
         return []
     
     def download_pdf_files(self, case_url, case_number):
-        """Скачивает PDF файлы из электронного дела"""
+        """Скачивает PDF файлы из электронного дела - УПРОЩЕННАЯ ВЕРСИЯ"""
         # ПРОВЕРКА: Если парсер остановлен, не выполняем скачивание
         if not self.is_processing:
             logger.warning("🛑 ПАРСЕР ОСТАНОВЛЕН - скачивание отменено")
             return []
             
         downloaded_files = []
-        total_documents = 0
-        successful_downloads = 0
         
         try:
             logger.info(f"🌐 [NAVIGATION] Переход к делу: {case_url}")
@@ -1164,7 +1074,7 @@ class KadArbitrParser:
             logger.info(f"✅ [NAVIGATION] Загружена страница дела: {self.driver.current_url}")
             time.sleep(3)
             
-            # Ищем вкладку "Электронное дело" по точному селектору
+            # Ищем вкладку "Электронное дело"
             try:
                 electronic_tab = WebDriverWait(self.driver, 10).until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, 
@@ -1172,12 +1082,12 @@ class KadArbitrParser:
                 )
                 electronic_tab.click()
                 logger.info("✅ Переход на вкладку 'Электронное дело'")
-                time.sleep(2)  # Ждем загрузки списка документов
+                time.sleep(2)
             except TimeoutException:
                 logger.warning("❌ Вкладка 'Электронное дело' не найдена")
                 return downloaded_files
             
-            # Ждем загрузки содержимого списка документов
+            # Ждем загрузки списка документов
             try:
                 WebDriverWait(self.driver, 10).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "#chrono_ed_content > ul"))
@@ -1197,54 +1107,29 @@ class KadArbitrParser:
             
             logger.info(f"📄 Найдено {total_documents} документов для обработки")
             
-            # Ограничиваем количество документов для предотвращения бесконечного цикла
-            max_documents = min(total_documents, 5)  # Максимум 5 документов
+            # Ограничиваем количество документов
+            max_documents = min(total_documents, 5)
             if total_documents > max_documents:
                 logger.warning(f"🛑 Ограничение: обрабатываем только первые {max_documents} из {total_documents} документов")
             
-            # Логируем все найденные ссылки для отладки
-            for i, doc_element in enumerate(document_elements[:max_documents], 1):
-                try:
-                    link_element = doc_element.find_element(By.CSS_SELECTOR, "a")
-                    link_url = link_element.get_attribute('href')
-                    link_text = link_element.text.strip()
-                    logger.info(f"🔍 Документ {i}: {link_text} -> {link_url}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Не удалось получить информацию о документе {i}: {e}")
-            
             # Обрабатываем каждый документ
-            for i, doc_element in enumerate(document_elements, 1):
+            for i, doc_element in enumerate(document_elements[:max_documents], 1):
                 # ПРОВЕРКА: Если парсер остановлен, прерываем обработку
                 if not self.is_processing:
                     logger.warning("🛑 ПАРСЕР ОСТАНОВЛЕН - обработка документов прервана")
                     break
                     
                 try:
-                    logger.info(f"📋 Обработка документа {i}/{total_documents}")
-                    
-                    # Извлекаем дату документа
-                    date_element = doc_element.find_element(By.CSS_SELECTOR, "p.b-case-chrono-ed-item-date")
-                    date_text = date_element.text.strip()
-                    logger.info(f"📅 Дата документа: {date_text}")
-                    
-                    # Преобразуем дату из dd.mm.yyyy в yyyy-mm-dd
-                    try:
-                        parsed_date = datetime.strptime(date_text, "%d.%m.%Y")
-                        formatted_date = parsed_date.strftime("%Y-%m-%d")
-                        logger.info(f"📅 Форматированная дата: {formatted_date}")
-                    except ValueError as e:
-                        logger.warning(f"⚠️ Не удалось распарсить дату '{date_text}': {e}")
-                        formatted_date = f"unknown_date_{i}"
+                    logger.info(f"📋 Обработка документа {i}/{max_documents}")
                     
                     # Извлекаем ссылку на PDF
                     pdf_link_element = doc_element.find_element(By.CSS_SELECTOR, "a")
                     pdf_url = pdf_link_element.get_attribute('href')
                     doc_title = pdf_link_element.text.strip() or f"document_{i}"
                     
-                    # Очищаем название от символов новой строки и лишних пробелов
+                    # Очищаем название
                     doc_title = re.sub(r'\s+', ' ', doc_title).strip()
                     
-                    # Проверяем, что ссылка существует
                     if not pdf_url:
                         logger.warning(f"⚠️ Пустая ссылка для документа {i}")
                         continue
@@ -1252,110 +1137,41 @@ class KadArbitrParser:
                     logger.info(f"🔗 Ссылка на PDF: {pdf_url}")
                     logger.info(f"📄 Название документа: {doc_title}")
                     
-                    # Проверяем, что ссылка валидна
-                    if not pdf_url.startswith('http'):
-                        logger.warning(f"⚠️ Невалидная ссылка для документа {i}: {pdf_url}")
-                        continue
+                    # ПРОСТОЕ СКАЧИВАНИЕ: Переходим по ссылке и файл автоматически скачается
+                    logger.info(f"🌐 Переход по ссылке документа {i}...")
+                    self.driver.get(pdf_url)
                     
-                    logger.info(f"🔗 Прямая ссылка на документ: {pdf_url}")
+                    # Ждем скачивания файла
+                    logger.info("⏳ Ожидание скачивания файла (5 сек)...")
+                    time.sleep(5)
                     
-                    # Формируем имя файла с датой
-                    safe_case_number = case_number.replace('/', '_').replace('\\', '_')
-                    base_filename = f"{formatted_date}_{safe_case_number}_{doc_title}"
-                    # Очищаем имя файла от недопустимых символов
-                    safe_filename = re.sub(r'[<>:"/\\|?*\n\r\t]', '_', base_filename)
-                    filename = f"{safe_filename}.pdf"
-                    
-                    logger.info(f"💾 Скачивание документа {i}: {filename}")
-                    
-                    # ВАЖНО: Переходим на страницу документа ПЕРЕД запуском алгоритмов
-                    try:
-                        logger.info(f"🌐 [NAVIGATION] ════════════════════════════════════════")
-                        logger.info(f"🌐 [NAVIGATION] ПЕРЕХОД на страницу документа {i}/{total_documents}")
-                        logger.info(f"🌐 [NAVIGATION] URL: {pdf_url}")
-                        logger.info(f"🌐 [NAVIGATION] ════════════════════════════════════════")
-                        
-                        self.driver.get(pdf_url)
-                        
-                        # Ждем загрузки страницы документа
-                        logger.info("⏳ Ожидание загрузки страницы документа (5 сек)...")
-                        time.sleep(5)
-                        
-                        logger.info(f"✅ [NAVIGATION] Страница документа {i} загружена")
-                        logger.info(f"📍 [NAVIGATION] Текущий URL: {self.driver.current_url}")
-                        
-                        # ТЕПЕРЬ запускаем все алгоритмы на ЭТОЙ странице
-                        logger.info(f"🔄 Запуск ВСЕХ алгоритмов на странице документа {i}...")
-                        pdf_extractor = PDFExtractionAlgorithms(self.driver, self.files_dir, self.downloads_dir)
-                        
-                        # Запускаем все алгоритмы для ЭТОГО документа
-                        result_files = pdf_extractor.run_all_algorithms(case_number)
-                        
-                        if result_files:
-                            downloaded_files.extend(result_files)
-                            successful_downloads += 1
-                            logger.info(f"✅ Успешно обработан документ {i} через все алгоритмы: {len(result_files)} файлов")
-                        else:
-                            logger.warning(f"❌ Не удалось обработать документ {i} через все алгоритмы")
-                        
-                        # Возвращаемся на страницу дела для обработки следующего документа
-                        logger.info(f"🔙 [NAVIGATION] ════════════════════════════════════════")
-                        logger.info(f"🔙 [NAVIGATION] ВОЗВРАТ на страницу дела")
-                        logger.info(f"🔙 [NAVIGATION] URL: {case_url}")
-                        logger.info(f"🔙 [NAVIGATION] ════════════════════════════════════════")
-                        
-                        self.driver.get(case_url)
-                        logger.info(f"✅ [NAVIGATION] Загружена страница дела: {self.driver.current_url}")
-                        time.sleep(3)  # Ждем загрузки страницы дела
-                        
-                        # Переходим на вкладку "Электронное дело" снова
-                        try:
-                            electronic_tab = WebDriverWait(self.driver, 10).until(
-                                EC.element_to_be_clickable((By.CSS_SELECTOR, 
-                                    "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div.b-case-chrono-header > div > div:nth-child(2) > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text"))
-                            )
-                            electronic_tab.click()
-                            time.sleep(2)
-                            logger.info("✅ Вернулись на вкладку 'Электронное дело'")
-                        except Exception as e:
-                            logger.warning(f"⚠️ Не удалось вернуться на вкладку 'Электронное дело': {e}")
-                        
-                        # Обновляем список документов
-                        document_elements = self.driver.find_elements(By.CSS_SELECTOR, "#chrono_ed_content > ul > li")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Ошибка при обработке документа {i}: {e}")
-                        logger.warning(f"❌ Не удалось обработать документ {i}")
+                    logger.info(f"✅ Документ {i} должен быть скачан")
                     
                     # Небольшая пауза между скачиваниями
                     time.sleep(1)
                     
-                except NoSuchElementException as e:
-                    logger.error(f"❌ Элемент не найден для документа {i}: {e}")
-                    continue
                 except Exception as e:
                     logger.error(f"❌ Ошибка обработки документа {i}: {e}")
                     continue
             
+            # Перемещаем скачанные файлы в целевую папку
+            logger.info("📁 Перемещение скачанных файлов...")
+            downloads_dir = get_downloads_directory()
+            target_dir = os.path.join(os.getcwd(), "files")
+            
+            moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
+            downloaded_files.extend(moved_files)
+            
             # Итоговая статистика
             logger.info(f"📊 ИТОГИ СКАЧИВАНИЯ:")
-            logger.info(f"📄 Всего документов найдено: {total_documents}")
-            logger.info(f"✅ Успешно скачано: {successful_downloads}")
-            logger.info(f"❌ Не удалось скачать: {total_documents - successful_downloads}")
+            logger.info(f"📄 Всего документов найдено: {max_documents}")
+            logger.info(f"✅ Успешно скачано: {len(moved_files)}")
             
         except KeyboardInterrupt:
             logger.info("🛑 Получен сигнал завершения (Ctrl+C) во время скачивания файлов")
             return downloaded_files
         except Exception as e:
             logger.error(f"❌ Критическая ошибка скачивания файлов: {e}")
-            # При критической ошибке переинициализируем WebDriver
-            try:
-                if hasattr(self, 'driver') and self.driver:
-                    self.driver.quit()
-            except:
-                pass
-            self.driver = None
-            logger.warning("🔄 WebDriver переинициализирован из-за критической ошибки")
         
         return downloaded_files
             
@@ -1505,7 +1321,7 @@ class KadArbitrParser:
                 logger.error(f"❌ Ошибка нажатия кнопки 'Электронное дело': {e}")
                 return []
             
-            # ШАГ 3.3: Обрабатываем документы
+            # ШАГ 3.3: Обрабатываем документы - УПРОЩЕННАЯ ВЕРСИЯ
             logger.info("📄 ШАГ 3.3: Обработка документов дела")
             try:
                 # Ищем все документы в списке
@@ -1548,63 +1364,30 @@ class KadArbitrParser:
                         logger.info(f"🔗 [TAB] Ссылка на документ {i}: {pdf_url}")
                         logger.info(f"📄 [TAB] Название документа {i}: {doc_title}")
                         
-                        # ШАГ 3.4: Открываем документ в новой вкладке и скачиваем
-                        logger.info(f"🪟 [TAB] Открытие документа {i} в новой вкладке...")
+                        # ПРОСТОЕ СКАЧИВАНИЕ: Переходим по ссылке и файл автоматически скачается
+                        logger.info(f"🌐 [TAB] Переход по ссылке документа {i}...")
+                        self.driver.get(pdf_url)
                         
-                        try:
-                            # Сохраняем текущее окно (окно со списком документов)
-                            case_window = self.driver.current_window_handle
-                            
-                            # Открываем новую вкладку для документа
-                            self.driver.execute_script("window.open('');")
-                            time.sleep(1)
-                            
-                            # Переключаемся на новую вкладку документа
-                            doc_window = self.driver.window_handles[-1]
-                            self.driver.switch_to.window(doc_window)
-                            logger.info(f"✅ [TAB] Переключились на вкладку документа {i}")
-                            
-                            # Загружаем страницу документа
-                            logger.info(f"🌐 [TAB] Загружаем страницу документа {i}: {pdf_url}")
-                            self.driver.get(pdf_url)
-                            time.sleep(5)
-                            
-                            doc_current_url = self.driver.current_url
-                            logger.info(f"✅ [TAB] Страница документа {i} загружена: {doc_current_url}")
-                            
-                            # Запускаем все алгоритмы извлечения PDF на странице документа
-                            logger.info(f"🔄 [TAB] Запуск всех алгоритмов для документа {i}...")
-                            pdf_extractor = PDFExtractionAlgorithms(self.driver, self.files_dir, self.downloads_dir)
-                            result_files = pdf_extractor.run_all_algorithms(case_number)
-                            
-                            if result_files:
-                                downloaded_files.extend(result_files)
-                                logger.info(f"✅ [TAB] Документ {i} обработан: {len(result_files)} файлов")
-                            else:
-                                logger.warning(f"❌ [TAB] Не удалось обработать документ {i}")
-                            
-                            # Закрываем вкладку документа и возвращаемся к списку документов
-                            logger.info(f"🔙 [TAB] Закрываем вкладку документа {i}...")
-                            self.driver.close()
-                            self.driver.switch_to.window(case_window)
-                            logger.info(f"✅ [TAB] Вернулись к списку документов")
-                            
-                        except Exception as e:
-                            logger.error(f"❌ [TAB] Ошибка обработки документа {i}: {e}")
-                            # Пытаемся вернуться к списку документов
-                            try:
-                                if len(self.driver.window_handles) > 1:
-                                    self.driver.switch_to.window(case_window)
-                            except:
-                                pass
-                            continue
+                        # Ждем скачивания файла
+                        logger.info("⏳ [TAB] Ожидание скачивания файла (5 сек)...")
+                        time.sleep(5)
+                        
+                        logger.info(f"✅ [TAB] Документ {i} должен быть скачан")
                         
                         # Небольшая пауза между документами
                         time.sleep(1)
                         
                     except Exception as e:
-                        logger.error(f"❌ [TAB] Ошибка извлечения данных документа {i}: {e}")
+                        logger.error(f"❌ [TAB] Ошибка обработки документа {i}: {e}")
                         continue
+                
+                # Перемещаем скачанные файлы в целевую папку
+                logger.info("📁 [TAB] Перемещение скачанных файлов...")
+                downloads_dir = get_downloads_directory()
+                target_dir = os.path.join(os.getcwd(), "files")
+                
+                moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
+                downloaded_files.extend(moved_files)
                 
                 # Закрываем вкладку дела и возвращаемся к оригинальному окну
                 logger.info("🔙 [TAB] Закрываем вкладку дела...")

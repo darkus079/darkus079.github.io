@@ -947,58 +947,109 @@ class PDFExtractionAlgorithms:
     def _download_pdf_via_post(self, pdf_url, method_name, algorithm_name="unknown"):
         """
         Скачивает PDF через POST запрос (специфично для kad.arbitr.ru)
+        ОБНОВЛЕНО: Использует точные заголовки и данные из анализа сети
         """
         try:
             # Проверяем, что URL не пустой и валидный
             if not pdf_url or len(pdf_url.strip()) < 5:
-                logger.warning(f"⚠️ Пустой или невалидный URL: {pdf_url}")
+                logger.warning(f"⚠️ [POST] Пустой или невалидный URL: {pdf_url}")
                 return []
             
             # Нормализуем URL
             pdf_url = pdf_url.strip()
             if not pdf_url.startswith('http'):
-                logger.warning(f"⚠️ Относительный URL не поддерживается: {pdf_url}")
+                logger.warning(f"⚠️ [POST] Относительный URL не поддерживается: {pdf_url}")
                 return []
             
-            logger.info(f"📥 POST запрос PDF через {algorithm_name}: {pdf_url}")
+            logger.info(f"📥 [POST] Запрос PDF через {algorithm_name}: {pdf_url}")
             
+            # Точные заголовки из анализа сети
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/pdf,application/octet-stream,*/*',
-                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Referer': 'https://kad.arbitr.ru/',
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'authority': 'kad.arbitr.ru',
+                'method': 'POST',
+                'scheme': 'https',
+                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'accept-encoding': 'gzip, deflate, br, zstd',
+                'accept-language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                'cache-control': 'no-cache',
+                'content-type': 'application/x-www-form-urlencoded',
+                'origin': 'https://kad.arbitr.ru',
+                'pragma': 'no-cache',
+                'priority': 'u=0, i',
+                'referer': pdf_url,  # Используем тот же URL как referer
+                'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'document',
+                'sec-fetch-mode': 'navigate',
+                'sec-fetch-site': 'same-origin',
+                'upgrade-insecure-requests': '1',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
             }
             
-            # Пробуем разные POST данные
+            # Получаем cookies из браузера
+            try:
+                cookies = self.driver.get_cookies()
+                cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+                logger.info(f"🍪 [POST] Используем {len(cookie_dict)} cookies из браузера")
+            except Exception as e:
+                logger.warning(f"⚠️ [POST] Не удалось получить cookies: {e}")
+                cookie_dict = {}
+            
+            # Пробуем разные POST данные на основе анализа
             post_data_variants = [
-                {},  # Пустые данные
-                {'isAddStamp': 'True'},  # С параметром из URL
-                {'format': 'pdf'},  # Формат
-                {'download': 'true'},  # Флаг скачивания
-                {'action': 'download'},  # Действие
-                {'isAddStamp': 'True', 'format': 'pdf'},  # Комбинация
-                {'isAddStamp': 'True', 'download': 'true'},  # Комбинация
+                # Вариант 1: Пустые данные (как в анализе)
+                {},
+                # Вариант 2: isAddStamp=True (из URL параметра)
+                {'isAddStamp': 'True'},
+                # Вариант 3: Пустые данные с content-length: 60 (как в анализе)
+                {'': ''},
+                # Вариант 4: Комбинация параметров
+                {'isAddStamp': 'True', 'format': 'pdf'},
+                # Вариант 5: Дополнительные параметры
+                {'download': 'true', 'isAddStamp': 'True'},
             ]
             
             for i, post_data in enumerate(post_data_variants):
                 try:
-                    logger.info(f"🔄 POST вариант {i+1}: {post_data}")
+                    logger.info(f"🔄 [POST] Вариант {i+1}: {post_data}")
                     
-                    response = requests.post(pdf_url, headers=headers, data=post_data, timeout=30)
-                    response.raise_for_status()
+                    # Выполняем POST запрос
+                    response = requests.post(
+                        pdf_url, 
+                        headers=headers, 
+                        data=post_data, 
+                        cookies=cookie_dict,
+                        timeout=30,
+                        allow_redirects=True
+                    )
+                    
+                    # Подробное логирование ответа
+                    logger.info(f"📊 [POST] Вариант {i+1} - Статус: {response.status_code}")
+                    logger.info(f"📊 [POST] Вариант {i+1} - Content-Type: {response.headers.get('content-type', 'N/A')}")
+                    logger.info(f"📊 [POST] Вариант {i+1} - Content-Length: {response.headers.get('content-length', 'N/A')}")
+                    logger.info(f"📊 [POST] Вариант {i+1} - Server: {response.headers.get('server', 'N/A')}")
+                    logger.info(f"📊 [POST] Вариант {i+1} - Размер ответа: {len(response.content)} байт")
+                    
+                    # Проверяем статус код
+                    if response.status_code != 200:
+                        logger.warning(f"⚠️ [POST] Вариант {i+1} - Неуспешный статус: {response.status_code}")
+                        logger.warning(f"⚠️ [POST] Вариант {i+1} - Ответ сервера: {response.text[:500]}")
+                        continue
                     
                     # Проверяем, что это действительно PDF
                     content_type = response.headers.get('content-type', '').lower()
-                    if 'pdf' in content_type or response.content.startswith(b'%PDF'):
-                        logger.info(f"✅ POST вариант {i+1} успешен: {content_type}")
+                    is_pdf_content = 'pdf' in content_type or response.content.startswith(b'%PDF')
+                    
+                    logger.info(f"📄 [POST] Вариант {i+1} - PDF контент: {is_pdf_content}")
+                    logger.info(f"📄 [POST] Вариант {i+1} - Начало файла: {response.content[:50]}")
+                    
+                    if is_pdf_content:
+                        logger.info(f"✅ [POST] Вариант {i+1} успешен: {content_type}")
                         
                         # Проверяем размер файла
                         if len(response.content) < 1000:  # Минимум 1KB
-                            logger.warning(f"⚠️ Файл слишком мал ({len(response.content)} байт)")
+                            logger.warning(f"⚠️ [POST] Вариант {i+1} - Файл слишком мал ({len(response.content)} байт)")
                             continue
                         
                         # Генерируем уникальное имя файла
@@ -1012,37 +1063,44 @@ class PDFExtractionAlgorithms:
                             f.write(response.content)
                         
                         final_filename = os.path.basename(filepath)
-                        logger.info(f"✅ PDF сохранен через POST {algorithm_name}: {final_filename} ({len(response.content)} байт)")
+                        logger.info(f"✅ [POST] PDF сохранен через {algorithm_name}: {final_filename} ({len(response.content)} байт)")
                         return [filepath]
                     else:
-                        logger.debug(f"⚠️ POST вариант {i+1} не PDF: {content_type}")
+                        logger.warning(f"⚠️ [POST] Вариант {i+1} - Не PDF контент: {content_type}")
+                        logger.warning(f"⚠️ [POST] Вариант {i+1} - Начало ответа: {response.text[:200]}")
                         continue
                         
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"❌ [POST] Вариант {i+1} - Ошибка запроса: {e}")
+                    continue
                 except Exception as e:
-                    logger.debug(f"⚠️ POST вариант {i+1} ошибка: {e}")
+                    logger.error(f"❌ [POST] Вариант {i+1} - Неожиданная ошибка: {e}")
                     continue
             
             # Если POST не сработал, пробуем GET
-            logger.info("🔄 POST не сработал, пробуем GET...")
+            logger.warning("🔄 [POST] Все POST варианты не сработали, пробуем GET...")
             return self._download_pdf_direct(pdf_url, method_name, algorithm_name)
             
         except Exception as e:
-            logger.error(f"❌ Ошибка POST скачивания через {algorithm_name} {pdf_url}: {e}")
+            logger.error(f"❌ [POST] Критическая ошибка POST скачивания через {algorithm_name} {pdf_url}: {e}")
+            import traceback
+            logger.error(f"❌ [POST] Traceback: {traceback.format_exc()}")
             return []
     
     def run_all_algorithms(self, case_number):
         """
         Запуск всех алгоритмов извлечения PDF последовательно
-        Теперь ВСЕ алгоритмы выполняются, даже если первый успешен
+        ОБНОВЛЕНО: Подробное логирование ошибок и ответов сервера
         """
         logger.info("🚀 Запуск ВСЕХ алгоритмов извлечения PDF")
+        logger.info("=" * 80)
         
         # Получаем URL текущей страницы
         try:
             page_url = self.driver.current_url
             logger.info(f"📍 Текущая страница: {page_url}")
-        except:
-            logger.error("❌ Не удалось получить URL текущей страницы")
+        except Exception as e:
+            logger.error(f"❌ Не удалось получить URL текущей страницы: {e}")
             return []
         
         # ПРОВЕРКА: Если мы уже на странице PDF документа, попробуем скачать напрямую
@@ -1059,156 +1117,290 @@ class PDFExtractionAlgorithms:
                     # Продолжаем с остальными алгоритмами для максимального покрытия
             except Exception as e:
                 logger.warning(f"⚠️ Прямое скачивание не удалось: {e}")
+                import traceback
+                logger.warning(f"⚠️ Traceback: {traceback.format_exc()}")
     
         all_downloaded_files = []
         
         # Алгоритм 1: Поиск прямого URL
         try:
             logger.info("🔄 АЛГОРИТМ 1: Поиск прямого URL")
+            logger.info("-" * 50)
             files = self.find_pdf_url_direct(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 1 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 1 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 1 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 1: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 2: Selenium автоматизация
         try:
             logger.info("🔄 АЛГОРИТМ 2: Selenium автоматизация")
+            logger.info("-" * 50)
             files = self.extract_pdf_via_selenium(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 2 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 2 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 2 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 2: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 3: Перехват сетевых запросов
         try:
             logger.info("🔄 АЛГОРИТМ 3: Перехват сетевых запросов")
+            logger.info("-" * 50)
             files = self.find_pdf_in_network_requests(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 3 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 3 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 3 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 3: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 4: API запросы
         try:
             logger.info("🔄 АЛГОРИТМ 4: API запросы")
+            logger.info("-" * 50)
             files = self.find_pdf_via_api_requests(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 4 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 4 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 4 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 4: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 5: Комплексный подход
         try:
             logger.info("🔄 АЛГОРИТМ 5: Комплексный подход")
+            logger.info("-" * 50)
             files = self.comprehensive_pdf_extraction(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 5 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 5 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 5 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 5: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 6: Продвинутые стратегии
         try:
             logger.info("🔄 АЛГОРИТМ 6: Продвинутые стратегии")
+            logger.info("-" * 50)
             files = self.run_advanced_strategies(case_number, page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 6 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 6 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 6 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 6: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 7: PDF.js API
         try:
             logger.info("🔄 АЛГОРИТМ 7: PDF.js API")
+            logger.info("-" * 50)
             files = self.extract_pdf_from_pdfjs_api(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 7 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 7 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 7 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 7: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 8: Blob URL перехват
         try:
             logger.info("🔄 АЛГОРИТМ 8: Blob URL перехват")
+            logger.info("-" * 50)
             files = self.extract_pdf_via_blob_interception(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 8 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 8 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 8 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 8: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 9: Кнопка "Скачать" + Мониторинг
         try:
             logger.info("🔄 АЛГОРИТМ 9: Кнопка 'Скачать' + Мониторинг")
+            logger.info("-" * 50)
             files = self.download_via_button_and_monitoring(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 9 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 9 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 9 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 9: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 10: Print to PDF
         try:
             logger.info("🔄 АЛГОРИТМ 10: Print to PDF")
+            logger.info("-" * 50)
             files = self.download_via_print_to_pdf(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 10 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 10 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 10 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 10: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 11: Ctrl+S + автоматизация диалога
         try:
             logger.info("🔄 АЛГОРИТМ 11: Ctrl+S + автоматизация диалога")
+            logger.info("-" * 50)
             files = self.download_via_ctrl_s_dialog(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 11 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 11 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 11 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 11: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         # Алгоритм 12: Методы из autoKad.py
         try:
             logger.info("🔄 АЛГОРИТМ 12: Методы из autoKad.py")
+            logger.info("-" * 50)
             files = self.download_via_autokad_methods(page_url)
             if files:
                 all_downloaded_files.extend(files)
                 logger.info(f"✅ АЛГОРИТМ 12 завершен: найдено {len(files)} файлов")
+                for i, file_path in enumerate(files, 1):
+                    if os.path.exists(file_path):
+                        size = os.path.getsize(file_path)
+                        logger.info(f"   📄 Файл {i}: {os.path.basename(file_path)} ({size} байт)")
+                    else:
+                        logger.warning(f"   ❌ Файл {i} не существует: {file_path}")
             else:
-                logger.info("⚠️ АЛГОРИТМ 12 не дал результатов")
+                logger.warning("⚠️ АЛГОРИТМ 12 не дал результатов")
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 12: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Итоговая статистика
+        logger.info("=" * 80)
+        logger.info("📊 ИТОГОВАЯ СТАТИСТИКА АЛГОРИТМОВ")
+        logger.info("=" * 80)
         
         # Удаляем дубликаты
         unique_files = list(set(all_downloaded_files))
-        logger.info(f"🎉 ВСЕ АЛГОРИТМЫ ЗАВЕРШЕНЫ! Всего найдено уникальных файлов: {len(unique_files)}")
+        logger.info(f"🎉 ВСЕ АЛГОРИТМЫ ЗАВЕРШЕНЫ!")
+        logger.info(f"📄 Всего найдено файлов: {len(all_downloaded_files)}")
+        logger.info(f"📄 Уникальных файлов: {len(unique_files)}")
+        
+        # Проверяем существование файлов
+        existing_files = []
+        missing_files = []
+        
+        for file_path in unique_files:
+            if os.path.exists(file_path):
+                size = os.path.getsize(file_path)
+                existing_files.append((file_path, size))
+                logger.info(f"✅ Файл существует: {os.path.basename(file_path)} ({size} байт)")
+            else:
+                missing_files.append(file_path)
+                logger.warning(f"❌ Файл не существует: {file_path}")
+        
+        logger.info(f"✅ Существующих файлов: {len(existing_files)}")
+        logger.info(f"❌ Отсутствующих файлов: {len(missing_files)}")
+        logger.info("=" * 80)
         
         return unique_files
     
@@ -1737,7 +1929,7 @@ class PDFExtractionAlgorithms:
     def download_via_print_to_pdf(self, page_url):
         """
         Алгоритм 10: Print to PDF
-        Запасной метод - использует встроенную функцию Chrome
+        ИСПРАВЛЕН: Сначала пытается скачать PDF через POST, затем использует CDP
         """
         logger.info("🔍 АЛГОРИТМ 10: Print to PDF")
         
@@ -1753,49 +1945,69 @@ class PDFExtractionAlgorithms:
             logger.info("⏳ Ожидание загрузки страницы (5 сек)...")
             time.sleep(5)
             
-            # Используем CDP для печати в PDF
-            logger.info("🖨️ Печать страницы в PDF через CDP...")
+            # СНАЧАЛА: Пытаемся скачать PDF через POST запрос
+            if '/Document/Pdf/' in page_url:
+                logger.info("📥 [ALGORITHM_10] Попытка скачивания PDF через POST...")
+                try:
+                    post_files = self._download_pdf_via_post(page_url, "print_post", "ALGORITHM_10")
+                    if post_files:
+                        logger.info(f"✅ [ALGORITHM_10] PDF скачан через POST: {len(post_files)} файлов")
+                        return post_files
+                    else:
+                        logger.warning("⚠️ [ALGORITHM_10] POST запрос не дал результатов")
+                except Exception as e:
+                    logger.warning(f"⚠️ [ALGORITHM_10] Ошибка POST запроса: {e}")
             
-            result = self.driver.execute_cdp_cmd('Page.printToPDF', {
-                'printBackground': True,
-                'landscape': False,
-                'paperWidth': 8.27,  # A4 ширина в дюймах
-                'paperHeight': 11.69,  # A4 высота в дюймах
-                'marginTop': 0,
-                'marginBottom': 0,
-                'marginLeft': 0,
-                'marginRight': 0,
-                'preferCSSPageSize': True,
-                'displayHeaderFooter': False
-            })
+            # ЕСЛИ POST НЕ СРАБОТАЛ: Используем CDP для печати в PDF
+            logger.info("🖨️ [ALGORITHM_10] Используем CDP для печати в PDF...")
             
-            # Декодируем base64
-            import base64
-            pdf_data = base64.b64decode(result['data'])
-            
-            logger.info(f"✅ PDF создан через Print: {len(pdf_data)} байт")
-            
-            # Проверяем, что это PDF
-            if not pdf_data.startswith(b'%PDF'):
-                logger.warning("⚠️ Print результат не является PDF")
+            try:
+                result = self.driver.execute_cdp_cmd('Page.printToPDF', {
+                    'printBackground': True,
+                    'landscape': False,
+                    'paperWidth': 8.27,  # A4 ширина в дюймах
+                    'paperHeight': 11.69,  # A4 высота в дюймах
+                    'marginTop': 0,
+                    'marginBottom': 0,
+                    'marginLeft': 0,
+                    'marginRight': 0,
+                    'preferCSSPageSize': True,
+                    'displayHeaderFooter': False
+                })
+                
+                # Декодируем base64
+                import base64
+                pdf_data = base64.b64decode(result['data'])
+                
+                logger.info(f"📊 [ALGORITHM_10] CDP результат: {len(pdf_data)} байт")
+                logger.info(f"📊 [ALGORITHM_10] Начало файла: {pdf_data[:50]}")
+                
+                # Проверяем, что это PDF
+                if not pdf_data.startswith(b'%PDF'):
+                    logger.warning("⚠️ [ALGORITHM_10] CDP результат не является PDF")
+                    logger.warning(f"⚠️ [ALGORITHM_10] Начало файла: {pdf_data[:100]}")
+                    return []
+                
+                # Сохраняем
+                import hashlib
+                data_hash = hashlib.md5(pdf_data).hexdigest()[:8]
+                filename = f"ALGORITHM_10_print_{data_hash}.pdf"
+                filepath = os.path.join(self.files_dir, filename)
+                
+                with open(filepath, 'wb') as f:
+                    f.write(pdf_data)
+                
+                logger.info(f"✅ [ALGORITHM_10] PDF через CDP: {filename} ({len(pdf_data)} байт)")
+                return [filepath]
+                
+            except Exception as cdp_error:
+                logger.error(f"❌ [ALGORITHM_10] Ошибка CDP: {cdp_error}")
                 return []
-            
-            # Сохраняем
-            import hashlib
-            data_hash = hashlib.md5(pdf_data).hexdigest()[:8]
-            filename = f"ALGORITHM_10_print_{data_hash}.pdf"
-            filepath = os.path.join(self.files_dir, filename)
-            
-            with open(filepath, 'wb') as f:
-                f.write(pdf_data)
-            
-            logger.info(f"✅ PDF через Print: {filename} ({len(pdf_data)} байт)")
-            return [filepath]
             
         except Exception as e:
             logger.error(f"❌ Ошибка в АЛГОРИТМЕ 10: {e}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return []
     
     def download_via_ctrl_s_dialog(self, page_url):
