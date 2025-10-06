@@ -253,7 +253,7 @@ class BackendClient {
       }
       
       // Преобразуем в формат, ожидаемый frontend
-      const files = data.files.map((fileName, index) => {
+      const files = await Promise.all(data.files.map(async (fileName, index) => {
         console.log(`Processing file ${index}:`, fileName, 'type:', typeof fileName);
         
         // Проверяем, что fileName является строкой
@@ -268,14 +268,29 @@ class BackendClient {
           };
         }
         
-        return {
+        // Получаем информацию о файле
+        let fileInfo = {
           name: fileName,
-          size: 0, // Размер не доступен через API
+          size: 0,
           url: `${this.baseUrl}/api/download/${encodeURIComponent(fileName)}`,
           created: new Date().toISOString(),
           modified: new Date().toISOString()
         };
-      });
+        
+        try {
+          const infoResponse = await fetch(`${this.baseUrl}/api/file-info/${encodeURIComponent(fileName)}`);
+          if (infoResponse.ok) {
+            const info = await infoResponse.json();
+            fileInfo.size = info.size;
+            fileInfo.created = info.created;
+            fileInfo.modified = info.modified;
+          }
+        } catch (error) {
+          console.warn(`Не удалось получить информацию о файле ${fileName}:`, error);
+        }
+        
+        return fileInfo;
+      }));
 
       this.log('📁 Получен список файлов', 'success', `Найдено файлов: ${files.length}`);
       

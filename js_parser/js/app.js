@@ -112,14 +112,24 @@ class App {
             this.filesSection.style.display = 'block';
             this.filesList.innerHTML = '';
             
-            files.forEach(fileName => {
+            files.forEach(file => {
+                // Поддерживаем как старый формат (строки), так и новый (объекты)
+                const fileName = typeof file === 'string' ? file : file.name;
+                const fileUrl = typeof file === 'string' ? `/api/download/${encodeURIComponent(file)}` : file.url;
+                const fileSize = typeof file === 'object' && file.size ? this.formatFileSize(file.size) : 'Неизвестно';
+                
                 const listItem = document.createElement('li');
                 listItem.className = 'file-item';
                 listItem.innerHTML = `
-                    <div class="file-name">📄 ${fileName}</div>
-                    <button class="btn-download" onclick="app.downloadFile('${fileName}')">
-                        ⬇️ Скачать
-                    </button>
+                    <div class="file-info">
+                        <div class="file-name">📄 ${fileName}</div>
+                        <div class="file-details">Размер: ${fileSize}</div>
+                    </div>
+                    <div class="file-actions">
+                        <a href="${fileUrl}" class="btn-download" download="${fileName}">
+                            ⬇️ Скачать
+                        </a>
+                    </div>
                 `;
                 this.filesList.appendChild(listItem);
             });
@@ -173,8 +183,27 @@ class App {
     }
 
     downloadFile(fileName) {
-        // Файлы уже скачаны автоматически, показываем уведомление
-        this.showNotification(`Файл ${fileName} уже скачан!`, 'success');
+        // Создаем ссылку для скачивания
+        const downloadUrl = `/api/download/${encodeURIComponent(fileName)}`;
+        
+        // Создаем временную ссылку и кликаем по ней
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        this.showNotification(`Начинается скачивание файла: ${fileName}`, 'success');
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     showNotification(message, type = 'success') {

@@ -156,14 +156,36 @@ app.get('/api/files', async (req, res) => {
 });
 
 app.get('/api/download/:filename', (req, res) => {
-  const filename = req.params.filename;
+  const filename = decodeURIComponent(req.params.filename);
+  const filePath = path.join(FILES_DIR, filename);
+  
+  console.log(`🔍 Запрос на скачивание файла: ${filename}`);
+  console.log(`📁 Путь к файлу: ${filePath}`);
+  
+  if (!fs.existsSync(filePath)) {
+    console.log(`❌ Файл не найден: ${filePath}`);
+    return res.status(404).json({ message: 'Файл не найден' });
+  }
+  
+  console.log(`✅ Файл найден, начинаем скачивание: ${filename}`);
+  res.download(filePath, filename);
+});
+
+app.get('/api/file-info/:filename', (req, res) => {
+  const filename = decodeURIComponent(req.params.filename);
   const filePath = path.join(FILES_DIR, filename);
   
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ message: 'Файл не найден' });
   }
   
-  res.download(filePath, filename);
+  const stats = fs.statSync(filePath);
+  res.json({
+    name: filename,
+    size: stats.size,
+    created: stats.birthtime.toISOString(),
+    modified: stats.mtime.toISOString()
+  });
 });
 
 app.post('/api/clear', async (req, res) => {
