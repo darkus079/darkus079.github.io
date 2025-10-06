@@ -205,6 +205,32 @@ app.post('/api/clear', async (req, res) => {
   }
 });
 
+app.get('/api/doc-links', async (req, res) => {
+  const caseNumber = req.query.case;
+  if (!caseNumber) {
+    return res.status(400).json({ message: 'Не указан номер дела' });
+  }
+  try {
+    const backendResponse = await fetch(`http://localhost:8000/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
+    const data = await backendResponse.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка получения ссылок с бэкенда:', error);
+    res.status(500).json({ message: 'Ошибка получения ссылок' });
+  }
+});
+
+app.get('/api/cases', async (req, res) => {
+  try {
+    const backendResponse = await fetch('http://localhost:8000/api/cases');
+    const data = await backendResponse.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка получения списка дел с бэкенда:', error);
+    res.status(500).json({ message: 'Ошибка получения списка дел' });
+  }
+});
+
 app.post('/api/test-browser', async (req, res) => {
   try {
     const testParser = new KadArbitrParser();

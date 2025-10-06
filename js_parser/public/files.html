@@ -326,7 +326,8 @@
 
         async function loadFiles() {
             try {
-                const response = await fetch('/api/files');
+                // Получаем список всех дел с сохраненными ссылками
+                const response = await fetch('/api/cases');
                 const data = await response.json();
                 
                 document.getElementById('loading').style.display = 'none';
@@ -337,87 +338,59 @@
                 const filesCount = document.getElementById('filesCount');
                 const clearBtn = document.getElementById('clearBtn');
                 
-                if (data.files && data.files.length > 0) {
-                    filesCount.textContent = `📊 Всего файлов: ${data.files.length}`;
-                    clearBtn.style.display = 'inline-block';
+                if (data.cases && data.cases.length > 0) {
+                    filesCount.textContent = `📊 Всего дел: ${data.cases.length}`;
+                    clearBtn.style.display = 'none'; // Убираем кнопку очистки
                     
                     filesList.innerHTML = '';
                     emptyState.style.display = 'none';
                     
-                    data.files.forEach(async (file) => {
-                        // Безопасное извлечение имени файла
-                        let fileName;
-                        if (typeof file === 'string') {
-                            fileName = file;
-                        } else if (file && typeof file === 'object' && file.name) {
-                            fileName = file.name;
-                        } else {
-                            console.error('Неверный формат файла:', file);
-                            fileName = String(file);
-                        }
-                        
-                        // Безопасное создание URL для скачивания
-                        const fileUrl = `/api/download/${encodeURIComponent(fileName)}`;
-                        
-                        const listItem = document.createElement('li');
-                        listItem.className = 'file-item';
-                        
-                        // Попытка извлечь информацию из имени файла
-                        const parts = fileName.split('_');
-                        let caseInfo = 'Неизвестное дело';
-                        let dateInfo = 'Дата неизвестна';
-                        
-                        if (parts.length >= 2) {
-                            caseInfo = parts[0];
-                            if (parts.length >= 3 && parts[1].match(/\d{4}-\d{2}-\d{2}/)) {
-                                dateInfo = parts[1];
-                            }
-                        }
-                        
-                        // Получаем информацию о размере файла
-                        let fileSize = 'Загрузка...';
+                    // Загружаем ссылки для каждого дела
+                    for (const caseNumber of data.cases) {
                         try {
-                            const infoResponse = await fetch(`/api/file-info/${encodeURIComponent(fileName)}`);
-                            if (infoResponse.ok) {
-                                const info = await infoResponse.json();
-                                fileSize = formatFileSize(info.size);
-                            } else {
-                                fileSize = 'Неизвестно';
-                            }
+                            const linksResponse = await fetch(`/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
+                            const linksData = await linksResponse.json();
+                            const links = Array.isArray(linksData.links) ? linksData.links : [];
+                            
+                            links.forEach(link => {
+                                const name = link.name || 'Document';
+                                const url = link.url;
+                                const date = link.date ? `Дата: ${link.date} | ` : '';
+                                const source = link.source || 'kad.arbitr.ru';
+                                
+                                const listItem = document.createElement('li');
+                                listItem.className = 'file-item';
+                                listItem.innerHTML = `
+                                    <div class="file-info">
+                                        <div class="file-name">📄 ${name}</div>
+                                        <div class="file-details">
+                                            <strong>Дело:</strong> ${caseNumber} | 
+                                            ${date}<strong>Источник:</strong> ${source}
+                                        </div>
+                                    </div>
+                                    <div class="file-actions">
+                                        <a href="${url}" class="btn btn-download" target="_blank">
+                                            ⬇️ Открыть PDF
+                                        </a>
+                                    </div>
+                                `;
+                                filesList.appendChild(listItem);
+                            });
                         } catch (error) {
-                            console.warn(`Не удалось получить размер файла ${fileName}:`, error);
-                            fileSize = 'Неизвестно';
+                            console.warn(`Ошибка загрузки ссылок для дела ${caseNumber}:`, error);
                         }
-                        
-                        listItem.innerHTML = `
-                            <div class="file-info">
-                                <div class="file-name">📄 ${fileName}</div>
-                                <div class="file-details">
-                                    <strong>Дело:</strong> ${caseInfo} | 
-                                    <strong>Дата:</strong> ${dateInfo} |
-                                    <strong>Размер:</strong> ${fileSize}
-                                </div>
-                            </div>
-                            <div class="file-actions">
-                                <a href="${fileUrl}" class="btn btn-download" download="${fileName}">
-                                    ⬇️ Скачать
-                                </a>
-                            </div>
-                        `;
-                        
-                        filesList.appendChild(listItem);
-                    });
+                    }
                 } else {
-                    filesCount.textContent = '📊 Файлов не найдено';
+                    filesCount.textContent = '📊 Документов не найдено';
                     clearBtn.style.display = 'none';
                     emptyState.style.display = 'block';
                 }
                 
             } catch (error) {
-                console.error('Ошибка загрузки файлов:', error);
+                console.error('Ошибка загрузки документов:', error);
                 document.getElementById('loading').innerHTML = `
                     <div style="color: #dc3545;">
-                        ❌ Ошибка загрузки списка файлов<br>
+                        ❌ Ошибка загрузки списка документов<br>
                         <button class="refresh-btn" onclick="loadFiles()" style="margin-top: 15px;">
                             🔄 Попробовать снова
                         </button>

@@ -273,6 +273,12 @@ async def get_doc_links(case: str):
     links = DOC_LINKS_STORE.get(case.strip(), [])
     return {"case": case.strip(), "links": links}
 
+@app.get("/api/cases")
+async def get_cases():
+    """Возвращает список всех дел с сохраненными ссылками."""
+    cases = list(DOC_LINKS_STORE.keys())
+    return {"cases": cases}
+
 @app.get("/api/download/{filename}")
 async def api_download_file(filename: str):
     """Устаревший API скачивания локальных файлов"""
