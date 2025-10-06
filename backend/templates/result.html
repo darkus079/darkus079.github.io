@@ -272,16 +272,16 @@
             <div class="result-message">{{ result.message }}</div>
         </div>
 
-        {% if result.files %}
+        {% if result.links and result.links|length > 0 %}
         <div class="files-section">
-            <h2 class="files-title">📁 Скачанные файлы ({{ result.files|length }})</h2>
+            <h2 class="files-title">📄 Найденные документы ({{ result.links|length }})</h2>
             <ul class="files-list">
-                {% for file in result.files %}
+                {% for doc in result.links %}
                 <li class="file-item">
-                    <div class="file-name">📄 {{ file }}</div>
+                    <div class="file-name">📄 {{ doc.name or 'Document' }}{% if doc.date %} — {{ doc.date }}{% endif %}</div>
                     <div class="file-actions">
-                        <a href="/api/download/{{ file }}" class="btn btn-download" download data-filename="{{ file }}">
-                            ⬇️ Скачать
+                        <a href="{{ doc.url }}" class="btn btn-download" target="_blank">
+                            ⬇️ Открыть PDF
                         </a>
                     </div>
                 </li>
@@ -291,7 +291,7 @@
         {% else %}
         <div class="empty-state">
             <span class="icon">📭</span>
-            <h3>Файлы не найдены</h3>
+            <h3>Документы не найдены</h3>
             <p>Попробуйте проверить номер дела или повторите попытку позже</p>
         </div>
         {% endif %}
@@ -340,24 +340,15 @@
 
         // Отладочная информация
         console.log('🔍 Отладочная информация:');
-        console.log('📁 result.files:', {{ result.files|tojson }});
-        console.log('📁 Тип result.files:', typeof {{ result.files|tojson }});
-        console.log('📁 Длина result.files:', {{ result.files|length }});
+        console.log('🔗 result.links:', {{ result.links|tojson if result.links is defined else '[]' }});
+        console.log('🔗 Тип result.links:', typeof {{ result.links|tojson if result.links is defined else '[]' }});
+        console.log('🔗 Длина result.links:', {{ result.links|length if result.links is defined else 0 }});
         
         // Уведомление об успешном скачивании
         document.querySelectorAll('.btn-download').forEach(btn => {
             btn.addEventListener('click', function() {
                 const href = this.getAttribute('href');
-                const filename = this.getAttribute('data-filename');
-                console.log('🔍 Отладка скачивания:');
-                console.log('📄 href:', href);
-                console.log('📄 data-filename:', filename);
-                console.log('📄 Тип filename:', typeof filename);
-                
-                setTimeout(() => {
-                    // Можно добавить уведомление о начале скачивания
-                    console.log('Скачивание файла:', href);
-                }, 100);
+                console.log('🔍 Переход к PDF:', href);
             });
         });
     </script>

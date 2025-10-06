@@ -1432,12 +1432,7 @@ class KadArbitrParser:
             logger.info(f"🔄 Обработка дела: {case_text}")
             logger.info(f"🔗 URL дела: {case_url}")
 
-            # Открываем дело в новой вкладке
-            original_window = self.driver.current_window_handle
-            self.driver.execute_script("window.open('');")
-            time.sleep(1)
-            new_window = self.driver.window_handles[-1]
-            self.driver.switch_to.window(new_window)
+            # Переходим по ссылке дела в ТЕКУЩЕМ окне (без открытий вкладок)
             self.driver.get(case_url)
             time.sleep(3)
 
@@ -1485,13 +1480,6 @@ class KadArbitrParser:
                 except Exception as e:
                     logger.debug(f"Пропуск элемента документа: {e}")
                     continue
-
-            # Закрываем вкладку дела
-            try:
-                self.driver.close()
-                self.driver.switch_to.window(original_window)
-            except Exception:
-                pass
 
             logger.info(f"✅ Ссылок собрано: {len(links)}")
             return links

@@ -97,7 +97,7 @@ async def index(request: Request):
     })
 
 @app.post("/parse")
-async def parse_case(case_number: str = Form(...)):
+async def parse_case(request: Request, case_number: str = Form(...)):
     """Парсинг дела по номеру"""
     # ЖЕСТКАЯ ПРОВЕРКА: не выполняется ли уже парсинг
     if parsing_status["is_parsing"]:
