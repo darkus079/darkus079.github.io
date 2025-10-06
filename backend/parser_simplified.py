@@ -1488,6 +1488,16 @@ class KadArbitrParser:
                     logger.debug(f"Пропуск элемента документа: {e}")
                     continue
 
+            # Сохраняем все ссылки в refs.txt (одна ссылка на строку)
+            try:
+                refs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "refs.txt")
+                with open(refs_path, "w", encoding="utf-8") as f:
+                    for item in links:
+                        f.write((item.get("url") or "") + "\n")
+                logger.info(f"💾 Ссылки сохранены в {refs_path}")
+            except Exception as save_err:
+                logger.warning(f"⚠️ Не удалось сохранить refs.txt: {save_err}")
+
             logger.info(f"✅ Ссылок собрано: {len(links)}")
             return links
         except Exception as e:
