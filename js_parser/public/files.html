@@ -335,7 +335,10 @@
                     filesList.innerHTML = '';
                     emptyState.style.display = 'none';
                     
-                    data.files.forEach(fileName => {
+                    data.files.forEach(file => {
+                        const fileName = typeof file === 'string' ? file : file.name;
+                        const fileUrl = typeof file === 'string' ? `/api/download/${file}` : file.url;
+                        
                         const listItem = document.createElement('li');
                         listItem.className = 'file-item';
                         
@@ -360,7 +363,7 @@
                                 </div>
                             </div>
                             <div class="file-actions">
-                                <a href="/api/download/${fileName}" class="btn btn-download" download>
+                                <a href="${fileUrl}" class="btn btn-download" download>
                                     ⬇️ Скачать
                                 </a>
                             </div>

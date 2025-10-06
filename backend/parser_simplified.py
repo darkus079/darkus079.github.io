@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 class KadArbitrParser:
     def __init__(self):
         self.driver = None
-        self.files_dir = "files"
+        # Используем абсолютный путь к папке files в backend
+        self.files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
         self.downloads_dir = self._get_downloads_directory()
         self.is_processing = False  # Флаг для предотвращения повторных запусков
         self._force_stop = False  # Флаг принудительной остановки
@@ -1179,7 +1180,7 @@ class KadArbitrParser:
             # Перемещаем скачанные файлы в целевую папку
             logger.info("📁 Перемещение скачанных файлов...")
             downloads_dir = get_downloads_directory()
-            target_dir = os.path.join(os.getcwd(), "files")
+            target_dir = self.files_dir  # Используем правильный путь к папке files
             
             moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
             downloaded_files.extend(moved_files)
@@ -1428,7 +1429,7 @@ class KadArbitrParser:
                 # Перемещаем скачанные файлы в целевую папку
                 logger.info("📁 [TAB] Перемещение скачанных файлов...")
                 downloads_dir = get_downloads_directory()
-                target_dir = os.path.join(os.getcwd(), "files")
+                target_dir = self.files_dir  # Используем правильный путь к папке files
                 
                 moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
                 downloaded_files.extend(moved_files)

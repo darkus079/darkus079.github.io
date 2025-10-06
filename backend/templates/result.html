@@ -280,7 +280,7 @@
                 <li class="file-item">
                     <div class="file-name">📄 {{ file }}</div>
                     <div class="file-actions">
-                        <a href="/download/{{ file }}" class="btn btn-download" download>
+                        <a href="/api/download/{{ file }}" class="btn btn-download" download data-filename="{{ file }}">
                             ⬇️ Скачать
                         </a>
                     </div>
@@ -338,12 +338,25 @@
         setTimeout(checkStatus, 3000);
         {% endif %}
 
+        // Отладочная информация
+        console.log('🔍 Отладочная информация:');
+        console.log('📁 result.files:', {{ result.files|tojson }});
+        console.log('📁 Тип result.files:', typeof {{ result.files|tojson }});
+        console.log('📁 Длина result.files:', {{ result.files|length }});
+        
         // Уведомление об успешном скачивании
         document.querySelectorAll('.btn-download').forEach(btn => {
             btn.addEventListener('click', function() {
+                const href = this.getAttribute('href');
+                const filename = this.getAttribute('data-filename');
+                console.log('🔍 Отладка скачивания:');
+                console.log('📄 href:', href);
+                console.log('📄 data-filename:', filename);
+                console.log('📄 Тип filename:', typeof filename);
+                
                 setTimeout(() => {
                     // Можно добавить уведомление о начале скачивания
-                    console.log('Скачивание файла:', this.getAttribute('href'));
+                    console.log('Скачивание файла:', href);
                 }, 100);
             });
         });

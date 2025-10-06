@@ -800,12 +800,15 @@
 
             // Показываем список файлов
             if (files && files.length > 0) {
-                filesList.innerHTML = files.map(file => `
-                    <div class="file-item">
-                        <span class="file-name">${file}</span>
-                        <span class="download-btn">Скачан</span>
-                    </div>
-                `).join('');
+                filesList.innerHTML = files.map(file => {
+                    const fileName = typeof file === 'string' ? file : file.name;
+                    return `
+                        <div class="file-item">
+                            <span class="file-name">${fileName}</span>
+                            <span class="download-btn">Скачан</span>
+                        </div>
+                    `;
+                }).join('');
             } else {
                 filesList.innerHTML = '';
             }

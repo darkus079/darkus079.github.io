@@ -41,16 +41,22 @@ async def lifespan(app: FastAPI):
     parsing_status = {"is_parsing": False, "current_case": "", "progress": ""}
     
     # Очистка папки files
-    files_dir = "files"
-    if os.path.exists(files_dir):
+    if os.path.exists(FILES_DIR):
         try:
-            for filename in os.listdir(files_dir):
-                file_path = os.path.join(files_dir, filename)
+            for filename in os.listdir(FILES_DIR):
+                file_path = os.path.join(FILES_DIR, filename)
                 if os.path.isfile(file_path):
                     os.remove(file_path)
             logger.info("✅ Папка files очищена")
         except Exception as e:
             logger.warning(f"⚠️ Не удалось очистить папку files: {e}")
+    else:
+        # Создаем папку files если её нет
+        try:
+            os.makedirs(FILES_DIR, exist_ok=True)
+            logger.info("✅ Папка files создана")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось создать папку files: {e}")
     
     # Инициализация при запуске
     logger.info("Инициализация парсера...")
@@ -73,6 +79,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Определяем абсолютный путь к папке files
+FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
 
 # Подключение статических файлов и шаблонов
 templates = Jinja2Templates(directory="templates")
@@ -127,6 +136,13 @@ async def parse_case(case_number: str = Form(...)):
                 
                 # Формируем ответ
                 if downloaded_files:
+                    # Отладочная информация
+                    logger.info(f"🔍 Отладка downloaded_files:")
+                    logger.info(f"📁 Тип: {type(downloaded_files)}")
+                    logger.info(f"📁 Длина: {len(downloaded_files)}")
+                    for i, file in enumerate(downloaded_files):
+                        logger.info(f"📄 Файл {i}: {file} (тип: {type(file)})")
+                    
                     response_data = {
                         "success": True,
                         "message": f"Успешно скачано {len(downloaded_files)} файлов",
@@ -144,8 +160,6 @@ async def parse_case(case_number: str = Form(...)):
                     logger.warning("Парсинг завершен без результатов")
                 
                 # Возвращаем HTML ответ с результатами
-                from fastapi import Request
-                request = Request(scope={"type": "http", "method": "POST"})
                 return templates.TemplateResponse("result.html", {
                     "request": request,
                     "result": response_data,
@@ -163,8 +177,6 @@ async def parse_case(case_number: str = Form(...)):
                     "case_number": case_number.strip()
                 }
                 
-                from fastapi import Request
-                request = Request(scope={"type": "http", "method": "POST"})
                 return templates.TemplateResponse("result.html", {
                     "request": request,
                     "result": error_response,
@@ -245,17 +257,19 @@ async def files_page(request: Request):
 @app.get("/api/files")
 async def list_files():
     """API эндпоинт - список доступных файлов"""
-    files_dir = "files"
     file_names = []
     
-    if os.path.exists(files_dir):
+    if os.path.exists(FILES_DIR):
         try:
-            for filename in os.listdir(files_dir):
-                file_path = os.path.join(files_dir, filename)
+            for filename in os.listdir(FILES_DIR):
+                file_path = os.path.join(FILES_DIR, filename)
                 if os.path.isfile(file_path):
                     file_names.append(filename)
+            logger.info(f"📁 Найдено файлов в {FILES_DIR}: {len(file_names)}")
         except Exception as e:
             logger.error(f"Ошибка чтения папки files: {e}")
+    else:
+        logger.warning(f"Папка files не существует: {FILES_DIR}")
     
     return {"files": file_names}
 
@@ -266,20 +280,29 @@ async def api_download_file(filename: str):
     
     # Декодируем URL-encoded имя файла
     decoded_filename = urllib.parse.unquote(filename)
-    file_path = os.path.join("files", decoded_filename)
+    file_path = os.path.join(FILES_DIR, decoded_filename)
+    
+    logger.info(f"🔍 Поиск файла: {decoded_filename}")
+    logger.info(f"📁 Путь к файлу: {file_path}")
+    logger.info(f"📁 Папка files: {FILES_DIR}")
     
     if not os.path.exists(file_path):
+        logger.error(f"❌ Файл не найден: {file_path}")
         raise HTTPException(status_code=404, detail="Файл не найден")
     
     if not os.path.isfile(file_path):
+        logger.error(f"❌ Путь не является файлом: {file_path}")
         raise HTTPException(status_code=404, detail="Указанный путь не является файлом")
     
     # Проверяем, что файл находится в папке files (безопасность)
     real_path = os.path.realpath(file_path)
-    real_files_dir = os.path.realpath("files")
+    real_files_dir = os.path.realpath(FILES_DIR)
     
     if not real_path.startswith(real_files_dir):
+        logger.error(f"❌ Доступ к файлу запрещен: {real_path} не в {real_files_dir}")
         raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
+    
+    logger.info(f"✅ Файл найден и готов к скачиванию: {decoded_filename}")
     
     # Создаем безопасное имя файла для заголовка Content-Disposition
     # Заменяем кириллические символы на латинские аналоги
@@ -310,7 +333,7 @@ async def download_file(filename: str):
     
     # Декодируем URL-encoded имя файла
     decoded_filename = urllib.parse.unquote(filename)
-    file_path = os.path.join("files", decoded_filename)
+    file_path = os.path.join(FILES_DIR, decoded_filename)
     
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
@@ -320,7 +343,7 @@ async def download_file(filename: str):
     
     # Проверяем, что файл находится в папке files (безопасность)
     real_path = os.path.realpath(file_path)
-    real_files_dir = os.path.realpath("files")
+    real_files_dir = os.path.realpath(FILES_DIR)
     
     if not real_path.startswith(real_files_dir):
         raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
@@ -353,10 +376,16 @@ async def clear_files():
         raise HTTPException(status_code=429, detail="Нельзя очистить файлы во время парсинга")
     
     try:
-        if parser:
-            parser.cleanup_files_directory()
-            logger.info("Папка files очищена через веб-интерфейс")
+        if os.path.exists(FILES_DIR):
+            for filename in os.listdir(FILES_DIR):
+                file_path = os.path.join(FILES_DIR, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            logger.info(f"Папка files очищена через веб-интерфейс: {FILES_DIR}")
             return {"message": "Файлы успешно удалены"}
+        else:
+            logger.warning(f"Папка files не существует: {FILES_DIR}")
+            return {"message": "Папка files не существует"}
     except Exception as e:
         logger.error(f"Ошибка очистки файлов: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка очистки файлов: {str(e)}")
@@ -478,12 +507,13 @@ async def diagnostics_page(request: Request):
 
 if __name__ == "__main__":
     # Создаем папку templates если её нет
-    if not os.path.exists("templates"):
-        os.makedirs("templates")
+    templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+    if not os.path.exists(templates_dir):
+        os.makedirs(templates_dir)
     
     # Создаем папку files если её нет  
-    if not os.path.exists("files"):
-        os.makedirs("files")
+    if not os.path.exists(FILES_DIR):
+        os.makedirs(FILES_DIR)
     
     print("🚀 Запуск парсера kad.arbitr.ru с веб-интерфейсом")
     print("📱 Откройте браузер: http://localhost:8000")
