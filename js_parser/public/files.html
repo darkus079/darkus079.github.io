@@ -315,6 +315,15 @@
     </div>
 
     <script>
+        // Функция для форматирования размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
         async function loadFiles() {
             try {
                 const response = await fetch('/api/files');
@@ -335,9 +344,20 @@
                     filesList.innerHTML = '';
                     emptyState.style.display = 'none';
                     
-                    data.files.forEach(file => {
-                        const fileName = typeof file === 'string' ? file : file.name;
-                        const fileUrl = typeof file === 'string' ? `/api/download/${file}` : file.url;
+                    data.files.forEach(async (file) => {
+                        // Безопасное извлечение имени файла
+                        let fileName;
+                        if (typeof file === 'string') {
+                            fileName = file;
+                        } else if (file && typeof file === 'object' && file.name) {
+                            fileName = file.name;
+                        } else {
+                            console.error('Неверный формат файла:', file);
+                            fileName = String(file);
+                        }
+                        
+                        // Безопасное создание URL для скачивания
+                        const fileUrl = `/api/download/${encodeURIComponent(fileName)}`;
                         
                         const listItem = document.createElement('li');
                         listItem.className = 'file-item';
@@ -354,16 +374,32 @@
                             }
                         }
                         
+                        // Получаем информацию о размере файла
+                        let fileSize = 'Загрузка...';
+                        try {
+                            const infoResponse = await fetch(`/api/file-info/${encodeURIComponent(fileName)}`);
+                            if (infoResponse.ok) {
+                                const info = await infoResponse.json();
+                                fileSize = formatFileSize(info.size);
+                            } else {
+                                fileSize = 'Неизвестно';
+                            }
+                        } catch (error) {
+                            console.warn(`Не удалось получить размер файла ${fileName}:`, error);
+                            fileSize = 'Неизвестно';
+                        }
+                        
                         listItem.innerHTML = `
                             <div class="file-info">
                                 <div class="file-name">📄 ${fileName}</div>
                                 <div class="file-details">
                                     <strong>Дело:</strong> ${caseInfo} | 
-                                    <strong>Дата:</strong> ${dateInfo}
+                                    <strong>Дата:</strong> ${dateInfo} |
+                                    <strong>Размер:</strong> ${fileSize}
                                 </div>
                             </div>
                             <div class="file-actions">
-                                <a href="${fileUrl}" class="btn btn-download" download>
+                                <a href="${fileUrl}" class="btn btn-download" download="${fileName}">
                                     ⬇️ Скачать
                                 </a>
                             </div>

@@ -409,16 +409,32 @@
             
             if (files && files.length > 0) {
                 files.forEach(file => {
-                    const fileName = typeof file === 'string' ? file : file.name;
-                    const fileUrl = typeof file === 'string' ? `/api/download/${file}` : file.url;
+                    // Безопасное извлечение имени файла
+                    let fileName;
+                    if (typeof file === 'string') {
+                        fileName = file;
+                    } else if (file && typeof file === 'object' && file.name) {
+                        fileName = file.name;
+                    } else {
+                        console.error('Неверный формат файла:', file);
+                        fileName = String(file);
+                    }
+                    
+                    // Безопасное создание URL для скачивания
+                    const fileUrl = `/api/download/${encodeURIComponent(fileName)}`;
                     
                     const listItem = document.createElement('li');
                     listItem.className = 'file-item';
                     listItem.innerHTML = `
-                        <div class="file-name">📄 ${fileName}</div>
-                        <a href="${fileUrl}" class="btn-download" download>
-                            ⬇️ Скачать
-                        </a>
+                        <div class="file-info">
+                            <div class="file-name">📄 ${fileName}</div>
+                            <div class="file-details">Размер: Загрузка...</div>
+                        </div>
+                        <div class="file-actions">
+                            <a href="${fileUrl}" class="btn-download" download="${fileName}">
+                                ⬇️ Скачать
+                            </a>
+                        </div>
                     `;
                     filesList.appendChild(listItem);
                 });
