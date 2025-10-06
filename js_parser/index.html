@@ -747,7 +747,7 @@
                 console.log('parseCase type:', typeof downloadedFiles);
                 console.log('parseCase length:', downloadedFiles ? downloadedFiles.length : 'undefined');
 
-                // Показываем страницу успеха
+                // Показываем страницу успеха с ссылками
                 showSuccessPage(downloadedFiles);
                 showStatus('Парсинг завершен успешно!', 'success');
 
@@ -829,41 +829,33 @@
             console.log('files type:', typeof files);
             console.log('files length:', files ? files.length : 'undefined');
             
-            // Отображаем файлы с кнопками скачивания
+            // Отображаем найденные ссылки на PDF
             if (files && files.length > 0) {
                 successFilesList.innerHTML = files.map((file, index) => {
-                    console.log(`File ${index}:`, file, 'type:', typeof file);
-                    
-                    // Проверяем, что file - это объект
-                    if (typeof file !== 'object' || file === null) {
-                        console.error(`File ${index} is not an object:`, file);
-                        return `<div class="file-item">Ошибка: файл ${index} не является объектом</div>`;
+                    if (typeof file !== 'object' || file === null || !file.url) {
+                        return `<div class="file-item">Некорректная ссылка</div>`;
                     }
-                    
-                    // Проверяем наличие обязательных полей
-                    if (!file.name || !file.url) {
-                        console.error(`File ${index} missing name or url:`, file);
-                        return `<div class="file-item">Ошибка: файл ${index} не содержит name или url</div>`;
-                    }
-                    
-                    const fileSize = file.size > 0 ? formatFileSize(file.size) : 'Размер неизвестен';
+                    const date = file.date ? `Дата: ${file.date}` : '';
+                    const type = file.type ? file.type : 'PDF';
+                    const note = file.note ? `<div class="file-details">${file.note}</div>` : '';
                     return `
                         <div class="file-item">
                             <div class="file-info">
                                 <div class="file-name">${file.name}</div>
                                 <div class="file-details">
-                                    <span class="file-type">PDF</span>
-                                    <span class="file-size">${fileSize}</span>
+                                    <span class="file-type">${type}</span>
+                                    ${date ? `<span>${date}</span>` : ''}
                                 </div>
+                                ${note}
                             </div>
-                            <button class="download-btn" data-filename="${file.name}" data-url="${file.url}">
-                                📥 Скачать
-                            </button>
+                            <a class="download-btn" href="${file.url}" target="_blank" rel="noopener noreferrer">
+                                🔗 Открыть
+                            </a>
                         </div>
                     `;
                 }).join('');
             } else {
-                successFilesList.innerHTML = '<p>Файлы не найдены</p>';
+                successFilesList.innerHTML = '<p>Ссылки не найдены</p>';
             }
         }
 

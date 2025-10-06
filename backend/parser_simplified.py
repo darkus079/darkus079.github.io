@@ -1475,11 +1475,34 @@ class KadArbitrParser:
                     # Пытаемся извлечь дату из URL/названия
                     date_match = re.search(r"(20\d{2}-\d{2}-\d{2})", pdf_url or "") or re.search(r"(20\d{2}-\d{2}-\d{2})", full_title or "")
                     date_val = date_match.group(1) if date_match else None
-                    if pdf_url:
+                    # Фильтруем только PDF ссылки
+                    if pdf_url and (pdf_url.lower().endswith('.pdf') or '.pdf' in (pdf_url.lower())):
+                        # Выводим тип документа по ключевым словам
+                        doc_type = None
+                        try:
+                            lowered = (full_title or '').lower()
+                            if any(k in lowered for k in ["решение", "postanovlen", "reshen"]):
+                                doc_type = "Решение"
+                            elif any(k in lowered for k in ["определение", "opredel"]):
+                                doc_type = "Определение"
+                            elif any(k in lowered for k in ["постановление", "постановл", "пост"]):
+                                doc_type = "Постановление"
+                            elif any(k in lowered for k in ["исков", "иск", "заявлен"]):
+                                doc_type = "Заявление/Иск"
+                            else:
+                                doc_type = "PDF"
+                        except Exception:
+                            doc_type = "PDF"
+
+                        # Примечание – исходное полное название, если есть
+                        note_val = full_title if full_title else "Ссылка извлечена из раздела 'Электронное дело'"
+
                         links.append({
                             "name": display_name,
                             "url": pdf_url,
                             "date": date_val,
+                            "type": doc_type,
+                            "note": note_val,
                             "source": "kad.arbitr.ru"
                         })
                     # Rate limit 400ms

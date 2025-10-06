@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 # Глобальные переменные
 parser = None
 parsing_queue = queue.Queue()
+# Хранилище ссылок по номеру дела
+LINKS_STORE: Dict[str, List[Dict[str, Any]]] = {}
 parsing_status = {
     "is_parsing": False, 
     "current_case": "", 
@@ -243,7 +245,7 @@ async def process_parsing_request(case_number: str):
             "files_count": 0
         })
         
-        logger.info(f"🔄 Начало парсинга дела: {case_number}")
+        logger.info(f"🔄 Начало сбора ссылок по делу: {case_number}")
         logger.info(f"🔍 Поиск дела в базе kad.arbitr.ru...")
         
         # Выполняем парсинг в отдельном потоке
@@ -265,39 +267,52 @@ async def process_parsing_request(case_number: str):
         logger.info(f"🌐 Открытие браузера для парсинга...")
         logger.info(f"📋 Переход на сайт kad.arbitr.ru...")
         
-        downloaded_files = await loop.run_in_executor(
-            None, 
-            parser.parse_case, 
+        # Сбор ссылок на PDF без скачивания
+        collected_links: List[Dict[str, Any]] = await loop.run_in_executor(
+            None,
+            parser.collect_document_links,
             case_number.strip()
         )
         
         processing_time = time.time() - start_time
         
-        # Детальное логирование результата
-        if downloaded_files:
-            logger.info(f"📁 Найдено документов: {len(downloaded_files)}")
-            for i, file_path in enumerate(downloaded_files, 1):
-                file_name = os.path.basename(file_path)
-                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                file_size_mb = file_size / (1024 * 1024)
-                logger.info(f"📄 Документ {i}: {file_name} ({file_size_mb:.2f} MB)")
+        # Фильтруем только PDF и сохраняем в память
+        safe_links = []
+        if collected_links:
+            for link in collected_links:
+                try:
+                    url = (link or {}).get("url", "")
+                    if not url or ".pdf" not in url.lower():
+                        continue
+                    safe_links.append({
+                        "name": (link or {}).get("name") or "Document",
+                        "url": url,
+                        "date": (link or {}).get("date"),
+                        "type": (link or {}).get("type") or "PDF",
+                        "note": (link or {}).get("note") or "",
+                        "source": (link or {}).get("source") or "kad.arbitr.ru"
+                    })
+                except Exception:
+                    continue
+            LINKS_STORE[case_number] = safe_links
+            logger.info(f"🔗 Сохранено ссылок: {len(safe_links)} для дела {case_number}")
         else:
-            logger.warning(f"⚠️ Документы не найдены для дела: {case_number}")
+            logger.warning(f"⚠️ Ссылки не найдены для дела: {case_number}")
         
         # Обновляем статус
         parsing_status.update({
             "is_parsing": False,
             "current_case": "",
-            "progress": f"Парсинг завершен. Скачано файлов: {len(downloaded_files)}",
+            "progress": f"Сбор ссылок завершен. Найдено ссылок: {len(LINKS_STORE.get(case_number, []))}",
             "start_time": "",
-            "files_count": len(downloaded_files)
+            "files_count": len(LINKS_STORE.get(case_number, []))
         })
         
         # Добавляем в историю
         history_entry = {
             "case_number": case_number,
             "success": True,
-            "files_count": len(downloaded_files),
+            "links_count": len(LINKS_STORE.get(case_number, [])),
             "processing_time": processing_time,
             "timestamp": datetime.now().isoformat()
         }
@@ -307,10 +322,7 @@ async def process_parsing_request(case_number: str):
         if len(parsing_history) > max_history:
             parsing_history.pop(0)
         
-        logger.info(f"✅ Парсинг завершен: {len(downloaded_files)} файлов за {processing_time:.2f}с")
-        if len(downloaded_files) > 0:
-            logger.info(f"⏱️ Средняя скорость: {len(downloaded_files)/processing_time:.2f} файлов/сек")
-        logger.info(f"💾 Файлы сохранены в папку: files/")
+        logger.info(f"✅ Сбор ссылок завершен: {len(LINKS_STORE.get(case_number, []))} ссылок за {processing_time:.2f}с")
         
     except Exception as e:
         processing_time = time.time() - start_time
@@ -375,7 +387,7 @@ async def parse_case(request: ParseRequest):
     
     return JSONResponse({
         "success": True,
-        "message": "Запрос добавлен в очередь парсинга",
+        "message": "Запрос добавлен в очередь сбора ссылок",
         "case_number": case_number,
         "queue_position": parsing_queue.qsize()
     })
@@ -394,89 +406,18 @@ async def get_status():
 
 @app.get("/api/files")
 async def list_files():
-    """Список доступных файлов"""
-    try:
-        files_dir = "files"
-        if not os.path.exists(files_dir):
-            return {"files": []}
-        
-        files = []
-        for filename in os.listdir(files_dir):
-            file_path = os.path.join(files_dir, filename)
-            if os.path.isfile(file_path):
-                stat = os.stat(file_path)
-                files.append({
-                    "name": filename,
-                    "size": stat.st_size,
-                    "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                })
-        
-        # Сортируем по дате создания (новые сначала)
-        files.sort(key=lambda x: x["created"], reverse=True)
-        
-        return {"files": files}
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка получения списка файлов: {e}")
-        return {"files": []}
+    """Эндпоинт удален в режиме только ссылок"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален: используйте /api/links?case=...")
 
 @app.get("/api/download/{filename}")
 async def download_file(filename: str):
-    """Скачивание файла"""
-    try:
-        file_path = os.path.join("files", filename)
-        
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Файл не найден")
-        
-        if not os.path.isfile(file_path):
-            raise HTTPException(status_code=404, detail="Указанный путь не является файлом")
-        
-        # Проверяем безопасность пути
-        real_path = os.path.realpath(file_path)
-        real_files_dir = os.path.realpath("files")
-        
-        if not real_path.startswith(real_files_dir):
-            raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
-        
-        def iterfile():
-            with open(file_path, mode="rb") as file_like:
-                yield from file_like
-        
-        return StreamingResponse(
-            iterfile(),
-            media_type='application/pdf',
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Ошибка скачивания файла {filename}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка скачивания файла")
+    """Эндпоинт удален в режиме только ссылок"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален: скачивание отключено")
 
 @app.post("/api/clear")
 async def clear_files():
-    """Очистка папки files"""
-    if parsing_status["is_parsing"]:
-        raise HTTPException(
-            status_code=429, 
-            detail="Нельзя очистить файлы во время парсинга"
-        )
-    
-    try:
-        files_dir = "files"
-        if os.path.exists(files_dir):
-            shutil.rmtree(files_dir)
-        os.makedirs(files_dir)
-        
-        logger.info("🗑️ Папка files очищена через API")
-        return {"success": True, "message": "Файлы успешно удалены"}
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка очистки файлов: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка очистки файлов: {str(e)}")
+    """Эндпоинт удален в режиме только ссылок"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален: скачивание отключено")
 
 @app.get("/api/history")
 async def get_parsing_history():
@@ -534,6 +475,20 @@ async def diagnostics_page(request: Request):
         "diagnostics": diagnostics_info,
         "status": parsing_status
     })
+
+# Новые эндпоинты для ссылок
+@app.get("/api/links")
+async def get_links(case: str):
+    """Возвращает собранные ссылки на PDF по номеру дела"""
+    case_key = (case or "").strip()
+    if not case_key:
+        raise HTTPException(status_code=400, detail="Не указан номер дела")
+    return {"case": case_key, "links": LINKS_STORE.get(case_key, [])}
+
+@app.get("/api/cases")
+async def get_cases():
+    """Список дел, по которым есть собранные ссылки"""
+    return {"cases": list(LINKS_STORE.keys())}
 
 def signal_handler(signum, frame):
     """Обработчик сигналов для корректного завершения"""

@@ -62,17 +62,10 @@ class BackendClient {
       // Ждем завершения парсинга
       const result = await this.waitForCompletion();
 
-      this.log('✅ ПАРСИНГ ЗАВЕРШЕН', 'success', `Скачано файлов: ${result.files.length}`);
-      
-      console.log('parseCase returning result.files:', result.files);
-      console.log('result.files type:', typeof result.files);
-      console.log('result.files length:', result.files ? result.files.length : 'undefined');
-      
-      if (result.files && result.files.length > 0) {
-        console.log('First file in result.files:', result.files[0], 'type:', typeof result.files[0]);
-      }
-      
-      return result.files;
+      this.log('✅ ПАРСИНГ ЗАВЕРШЕН', 'success', `Ссылки собраны`);
+      // Получаем ссылки для дела
+      const links = await this.getLinks(caseNumber);
+      return links;
 
     } catch (error) {
       this.log('❌ КРИТИЧЕСКАЯ ОШИБКА', 'error', error.message);
@@ -189,19 +182,10 @@ class BackendClient {
         if (parsingStarted && !status.is_parsing) {
           this.log('✅ Парсинг завершен на backend', 'success', status.progress);
           
-          // Получаем список файлов
-          const files = await this.getFilesList();
-          
-          console.log('waitForCompletion: files from getFilesList:', files);
-          console.log('waitForCompletion: files type:', typeof files);
-          console.log('waitForCompletion: files length:', files ? files.length : 'undefined');
-          
-          if (files && files.length > 0) {
-            console.log('waitForCompletion: first file:', files[0], 'type:', typeof files[0]);
-          }
-          
+          // Получаем ссылки
+          const files = await this.getLinks(this.currentCase);
           return {
-            success: status.files_count > 0,
+            success: (files && files.length > 0),
             files: files,
             message: status.progress
           };
@@ -235,68 +219,37 @@ class BackendClient {
    */
   async getFilesList() {
     try {
-      const response = await fetch(`${this.baseUrl}/api/files`);
-      
+      // Поддержка старого вызова: теперь возвращаем ссылки
+      return await this.getLinks(this.currentCase);
+    } catch (error) {
+      this.log('❌ Ошибка получения ссылок', 'error', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Получение ссылок на документы для дела
+   */
+  async getLinks(caseNumber) {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/links?case=${encodeURIComponent(caseNumber)}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
       const data = await response.json();
-      
-      console.log('API response data:', data);
-      console.log('data.files:', data.files);
-      console.log('data.files type:', typeof data.files);
-      console.log('data.files length:', data.files ? data.files.length : 'undefined');
-      
-      if (data.files && data.files.length > 0) {
-        console.log('First file:', data.files[0], 'type:', typeof data.files[0]);
-      }
-      
-      // Преобразуем в формат, ожидаемый frontend
-      const files = await Promise.all(data.files.map(async (fileName, index) => {
-        console.log(`Processing file ${index}:`, fileName, 'type:', typeof fileName);
-        
-        // Проверяем, что fileName является строкой
-        if (typeof fileName !== 'string') {
-          console.error(`File ${index} is not a string:`, fileName, 'type:', typeof fileName);
-          return {
-            name: String(fileName), // Принудительно преобразуем в строку
-            size: 0,
-            url: `${this.baseUrl}/api/download/${encodeURIComponent(String(fileName))}`,
-            created: new Date().toISOString(),
-            modified: new Date().toISOString()
-          };
-        }
-        
-        // Получаем информацию о файле
-        let fileInfo = {
-          name: fileName,
-          size: 0,
-          url: `${this.baseUrl}/api/download/${encodeURIComponent(fileName)}`,
-          created: new Date().toISOString(),
-          modified: new Date().toISOString()
-        };
-        
-        try {
-          const infoResponse = await fetch(`${this.baseUrl}/api/file-info/${encodeURIComponent(fileName)}`);
-          if (infoResponse.ok) {
-            const info = await infoResponse.json();
-            fileInfo.size = info.size;
-            fileInfo.created = info.created;
-            fileInfo.modified = info.modified;
-          }
-        } catch (error) {
-          console.warn(`Не удалось получить информацию о файле ${fileName}:`, error);
-        }
-        
-        return fileInfo;
-      }));
-
-      this.log('📁 Получен список файлов', 'success', `Найдено файлов: ${files.length}`);
-      
-      return files;
+      const links = Array.isArray(data.links) ? data.links : [];
+      // Приводим к унифицированной форме
+      const mapped = links.map(link => ({
+        name: link.name || 'Document',
+        url: link.url,
+        date: link.date || null,
+        type: link.type || 'PDF',
+        note: link.note || ''
+      })).filter(item => typeof item.url === 'string' && item.url.toLowerCase().includes('.pdf'));
+      this.log('🔗 Получены ссылки', 'success', `Всего: ${mapped.length}`);
+      return mapped;
     } catch (error) {
-      this.log('❌ Ошибка получения списка файлов', 'error', error.message);
+      this.log('❌ Ошибка получения ссылок', 'error', error.message);
       return [];
     }
   }
@@ -413,6 +366,7 @@ class BackendClient {
    * Получение списка скачанных файлов
    */
   getDownloadedFiles() {
+    // Совместимость: теперь возвращаем ссылки как "файлы"
     return this.downloadedFiles;
   }
 
