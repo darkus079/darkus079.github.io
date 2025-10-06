@@ -259,25 +259,13 @@ async def get_status():
 
 @app.get("/files", response_class=HTMLResponse)
 async def files_page(request: Request):
-    """Страница со списком файлов"""
-    return templates.TemplateResponse("files.html", {"request": request})
+    """Устаревшая страница локальных файлов"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален")
 
 @app.get("/api/files")
 async def list_files():
-    """API эндпоинт - список доступных файлов (устаревший, сохранен для совместимости)."""
-    file_names = []
-    if os.path.exists(FILES_DIR):
-        try:
-            for filename in os.listdir(FILES_DIR):
-                file_path = os.path.join(FILES_DIR, filename)
-                if os.path.isfile(file_path):
-                    file_names.append(filename)
-            logger.info(f"📁 Найдено файлов в {FILES_DIR}: {len(file_names)}")
-        except Exception as e:
-            logger.error(f"Ошибка чтения папки files: {e}")
-    else:
-        logger.warning(f"Папка files не существует: {FILES_DIR}")
-    return {"files": file_names}
+    """Устаревший API списка локальных файлов"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален")
 
 @app.get("/api/doc-links")
 async def get_doc_links(case: str):
@@ -287,120 +275,18 @@ async def get_doc_links(case: str):
 
 @app.get("/api/download/{filename}")
 async def api_download_file(filename: str):
-    """API эндпоинт для скачивания файла"""
-    import urllib.parse
-    
-    # Декодируем URL-encoded имя файла
-    decoded_filename = urllib.parse.unquote(filename)
-    file_path = os.path.join(FILES_DIR, decoded_filename)
-    
-    logger.info(f"🔍 Поиск файла: {decoded_filename}")
-    logger.info(f"📁 Путь к файлу: {file_path}")
-    logger.info(f"📁 Папка files: {FILES_DIR}")
-    
-    if not os.path.exists(file_path):
-        logger.error(f"❌ Файл не найден: {file_path}")
-        raise HTTPException(status_code=404, detail="Файл не найден")
-    
-    if not os.path.isfile(file_path):
-        logger.error(f"❌ Путь не является файлом: {file_path}")
-        raise HTTPException(status_code=404, detail="Указанный путь не является файлом")
-    
-    # Проверяем, что файл находится в папке files (безопасность)
-    real_path = os.path.realpath(file_path)
-    real_files_dir = os.path.realpath(FILES_DIR)
-    
-    if not real_path.startswith(real_files_dir):
-        logger.error(f"❌ Доступ к файлу запрещен: {real_path} не в {real_files_dir}")
-        raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
-    
-    logger.info(f"✅ Файл найден и готов к скачиванию: {decoded_filename}")
-    
-    # Создаем безопасное имя файла для заголовка Content-Disposition
-    # Заменяем кириллические символы на латинские аналоги
-    safe_filename = decoded_filename
-    cyrillic_to_latin = {
-        'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 
-        'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X', 'а': 'a', 'в': 'b', 
-        'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 
-        'т': 't', 'у': 'y', 'х': 'x'
-    }
-    
-    for cyr, lat in cyrillic_to_latin.items():
-        safe_filename = safe_filename.replace(cyr, lat)
-    
-    return FileResponse(
-        path=file_path,
-        filename=safe_filename,
-        media_type='application/pdf',
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{urllib.parse.quote(decoded_filename)}"
-        }
-    )
+    """Устаревший API скачивания локальных файлов"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален")
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    """Скачивание файла (устаревший эндпоинт, используйте /api/download/{filename})"""
-    import urllib.parse
-    
-    # Декодируем URL-encoded имя файла
-    decoded_filename = urllib.parse.unquote(filename)
-    file_path = os.path.join(FILES_DIR, decoded_filename)
-    
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Файл не найден")
-    
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="Указанный путь не является файлом")
-    
-    # Проверяем, что файл находится в папке files (безопасность)
-    real_path = os.path.realpath(file_path)
-    real_files_dir = os.path.realpath(FILES_DIR)
-    
-    if not real_path.startswith(real_files_dir):
-        raise HTTPException(status_code=403, detail="Доступ к файлу запрещен")
-    
-    # Создаем безопасное имя файла для заголовка Content-Disposition
-    safe_filename = decoded_filename
-    cyrillic_to_latin = {
-        'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 
-        'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X', 'а': 'a', 'в': 'b', 
-        'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 
-        'т': 't', 'у': 'y', 'х': 'x'
-    }
-    
-    for cyr, lat in cyrillic_to_latin.items():
-        safe_filename = safe_filename.replace(cyr, lat)
-    
-    return FileResponse(
-        path=file_path,
-        filename=safe_filename,
-        media_type='application/pdf',
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{urllib.parse.quote(decoded_filename)}"
-        }
-    )
+    """Устаревший роут скачивания"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален")
 
 @app.get("/clear")
 async def clear_files():
-    """Очистка папки files"""
-    if parsing_status["is_parsing"]:
-        raise HTTPException(status_code=429, detail="Нельзя очистить файлы во время парсинга")
-    
-    try:
-        if os.path.exists(FILES_DIR):
-            for filename in os.listdir(FILES_DIR):
-                file_path = os.path.join(FILES_DIR, filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-            logger.info(f"Папка files очищена через веб-интерфейс: {FILES_DIR}")
-            return {"message": "Файлы успешно удалены"}
-        else:
-            logger.warning(f"Папка files не существует: {FILES_DIR}")
-            return {"message": "Папка files не существует"}
-    except Exception as e:
-        logger.error(f"Ошибка очистки файлов: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка очистки файлов: {str(e)}")
+    """Устаревший роут очистки локальных файлов"""
+    raise HTTPException(status_code=404, detail="Эндпоинт удален")
 
 @app.get("/reinit-driver")
 async def reinit_driver():

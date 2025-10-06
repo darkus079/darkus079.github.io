@@ -1459,6 +1459,9 @@ class KadArbitrParser:
 
             # Собираем элементы документов
             document_elements = self.driver.find_elements(By.CSS_SELECTOR, "#chrono_ed_content > ul > li")
+            # Ограничение по количеству
+            if len(document_elements) > 100:
+                document_elements = document_elements[:100]
             total_documents = len(document_elements)
             logger.info(f"📄 Найдено документов: {total_documents}")
 
@@ -1466,17 +1469,21 @@ class KadArbitrParser:
                 try:
                     a_el = doc_element.find_element(By.CSS_SELECTOR, "a")
                     pdf_url = a_el.get_attribute('href')
-                    title = a_el.text.strip() or f"Document #{i}"
+                    full_title = a_el.text.strip()
+                    short_title = re.sub(r"\s+", " ", full_title)[:80] if full_title else None
+                    display_name = f"Document #{i}" if not short_title else f"Document #{i} — {short_title}"
                     # Пытаемся извлечь дату из URL/названия
-                    date_match = re.search(r"(20\d{2}-\d{2}-\d{2})", pdf_url or "") or re.search(r"(20\d{2}-\d{2}-\d{2})", title)
+                    date_match = re.search(r"(20\d{2}-\d{2}-\d{2})", pdf_url or "") or re.search(r"(20\d{2}-\d{2}-\d{2})", full_title or "")
                     date_val = date_match.group(1) if date_match else None
                     if pdf_url:
                         links.append({
-                            "name": f"Document #{i}",
+                            "name": display_name,
                             "url": pdf_url,
                             "date": date_val,
                             "source": "kad.arbitr.ru"
                         })
+                    # Rate limit 400ms
+                    time.sleep(0.4)
                 except Exception as e:
                     logger.debug(f"Пропуск элемента документа: {e}")
                     continue
