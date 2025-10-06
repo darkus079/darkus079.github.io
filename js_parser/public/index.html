@@ -407,37 +407,36 @@
             // Очищаем список файлов
             filesList.innerHTML = '';
             
-            if (files && files.length > 0) {
-                files.forEach(file => {
-                    // Безопасное извлечение имени файла
-                    let fileName;
-                    if (typeof file === 'string') {
-                        fileName = file;
-                    } else if (file && typeof file === 'object' && file.name) {
-                        fileName = file.name;
-                    } else {
-                        console.error('Неверный формат файла:', file);
-                        fileName = String(file);
-                    }
-                    
-                    // Безопасное создание URL для скачивания
-                    const fileUrl = `/api/download/${encodeURIComponent(fileName)}`;
-                    
-                    const listItem = document.createElement('li');
-                    listItem.className = 'file-item';
-                    listItem.innerHTML = `
-                        <div class="file-info">
-                            <div class="file-name">📄 ${fileName}</div>
-                            <div class="file-details">Размер: Загрузка...</div>
-                        </div>
-                        <div class="file-actions">
-                            <a href="${fileUrl}" class="btn-download" download="${fileName}">
-                                ⬇️ Скачать
-                            </a>
-                        </div>
-                    `;
-                    filesList.appendChild(listItem);
-                });
+            // Новая логика: отображаем список ссылок, собранных на бэкенде
+            if (success && caseNumber) {
+                fetch(`/api/doc-links?case=${encodeURIComponent(caseNumber)}`)
+                    .then(resp => resp.json())
+                    .then(data => {
+                        const links = Array.isArray(data.links) ? data.links : [];
+                        links.forEach(link => {
+                            const name = link.name || 'Document';
+                            const url = link.url;
+                            const date = link.date ? `Дата: ${link.date} | ` : '';
+                            const source = link.source || 'kad.arbitr.ru';
+                            const listItem = document.createElement('li');
+                            listItem.className = 'file-item';
+                            listItem.innerHTML = `
+                                <div class="file-info">
+                                    <div class="file-name">📄 ${name}</div>
+                                    <div class="file-details">${date}Источник: ${source}</div>
+                                </div>
+                                <div class="file-actions">
+                                    <a href="${url}" class="btn-download" target="_blank">
+                                        ⬇️ Скачать
+                                    </a>
+                                </div>
+                            `;
+                            filesList.appendChild(listItem);
+                        });
+                    })
+                    .catch(err => {
+                        console.error('Ошибка получения ссылок документов:', err);
+                    });
             }
         }
 

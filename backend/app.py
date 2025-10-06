@@ -22,6 +22,8 @@ parser = None
 parsing_semaphore = asyncio.Semaphore(1)
 # Статус парсинга
 parsing_status = {"is_parsing": False, "current_case": "", "progress": ""}
+# Память для ссылок на документы по номеру дела
+DOC_LINKS_STORE = {}
 
 class ParseRequest(BaseModel):
     case_number: str
@@ -126,35 +128,36 @@ async def parse_case(case_number: str = Form(...)):
                 # Обновляем прогресс
                 parsing_status["progress"] = "Поиск дела на сайте..."
                 
-                downloaded_files = await loop.run_in_executor(
-                    None, 
-                    parser.parse_case, 
+                # Новая логика: собираем ссылки вместо скачивания
+                collected_links = await loop.run_in_executor(
+                    None,
+                    parser.collect_document_links,
                     case_number.strip()
                 )
                 
-                parsing_status["progress"] = f"Парсинг завершен. Скачано файлов: {len(downloaded_files)}"
+                parsing_status["progress"] = f"Парсинг завершен. Найдено документов: {len(collected_links)}"
                 
                 # Формируем ответ
-                if downloaded_files:
+                if collected_links:
                     # Отладочная информация
-                    logger.info(f"🔍 Отладка downloaded_files:")
-                    logger.info(f"📁 Тип: {type(downloaded_files)}")
-                    logger.info(f"📁 Длина: {len(downloaded_files)}")
-                    for i, file in enumerate(downloaded_files):
-                        logger.info(f"📄 Файл {i}: {file} (тип: {type(file)})")
+                    # Сохраняем в память по номеру дела
+                    DOC_LINKS_STORE[case_number.strip()] = collected_links
+                    logger.info(f"🔗 Сохранено ссылок для {case_number}: {len(collected_links)}")
                     
                     response_data = {
                         "success": True,
-                        "message": f"Успешно скачано {len(downloaded_files)} файлов",
-                        "files": downloaded_files,
+                        "message": f"Найдено документов: {len(collected_links)}",
+                        "files": [],
+                        "links": collected_links,
                         "case_number": case_number.strip()
                     }
-                    logger.info(f"Парсинг завершен успешно: {len(downloaded_files)} файлов")
+                    logger.info(f"Парсинг завершен успешно: найдено документов {len(collected_links)}")
                 else:
                     response_data = {
                         "success": False,
-                        "message": "Дела не найдены или файлы недоступны",
+                        "message": "Дела не найдены или документы недоступны",
                         "files": [],
+                        "links": [],
                         "case_number": case_number.strip()
                     }
                     logger.warning("Парсинг завершен без результатов")
@@ -212,27 +215,32 @@ async def api_parse_case(case_number: str):
             
             parsing_status["progress"] = "Поиск дела на сайте..."
             
-            downloaded_files = await loop.run_in_executor(
-                None, 
-                parser.parse_case, 
+            collected_links = await loop.run_in_executor(
+                None,
+                parser.collect_document_links,
                 case_number.strip()
             )
             
-            parsing_status["progress"] = f"Парсинг завершен. Скачано файлов: {len(downloaded_files)}"
+            parsing_status["progress"] = f"Парсинг завершен. Найдено документов: {len(collected_links)}"
             
-            if downloaded_files:
-                logger.info(f"API парсинг завершен успешно: {len(downloaded_files)} файлов")
-                return ParseResponse(
-                    success=True,
-                    message=f"Успешно скачано {len(downloaded_files)} файлов",
-                    files=downloaded_files
+            if collected_links:
+                DOC_LINKS_STORE[case_number.strip()] = collected_links
+                logger.info(f"API парсинг завершен успешно: найдено документов {len(collected_links)}")
+                return JSONResponse(
+                    content={
+                        "success": True,
+                        "message": f"Найдено документов: {len(collected_links)}",
+                        "links": collected_links
+                    }
                 )
             else:
                 logger.warning("API парсинг завершен без результатов")
-                return ParseResponse(
-                    success=False,
-                    message="Дела не найдены или файлы недоступны",
-                    files=[]
+                return JSONResponse(
+                    content={
+                        "success": False,
+                        "message": "Дела не найдены или документы недоступны",
+                        "links": []
+                    }
                 )
                 
     except Exception as e:
@@ -256,9 +264,8 @@ async def files_page(request: Request):
 
 @app.get("/api/files")
 async def list_files():
-    """API эндпоинт - список доступных файлов"""
+    """API эндпоинт - список доступных файлов (устаревший, сохранен для совместимости)."""
     file_names = []
-    
     if os.path.exists(FILES_DIR):
         try:
             for filename in os.listdir(FILES_DIR):
@@ -270,8 +277,13 @@ async def list_files():
             logger.error(f"Ошибка чтения папки files: {e}")
     else:
         logger.warning(f"Папка files не существует: {FILES_DIR}")
-    
     return {"files": file_names}
+
+@app.get("/api/doc-links")
+async def get_doc_links(case: str):
+    """Возвращает собранные ссылки на документы для указанного номера дела."""
+    links = DOC_LINKS_STORE.get(case.strip(), [])
+    return {"case": case.strip(), "links": links}
 
 @app.get("/api/download/{filename}")
 async def api_download_file(filename: str):

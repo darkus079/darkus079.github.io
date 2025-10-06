@@ -1061,7 +1061,7 @@ class KadArbitrParser:
         return []
     
     def download_pdf_files(self, case_url, case_number):
-        """Скачивает PDF файлы из электронного дела - УПРОЩЕННАЯ ВЕРСИЯ"""
+        """УСТАРЕЛО: Скачивание файлов больше не используется. Оставлено для обратной совместимости."""
         # ПРОВЕРКА: Если парсер остановлен, не выполняем скачивание
         if not self.is_processing:
             logger.warning("🛑 ПАРСЕР ОСТАНОВЛЕН - скачивание отменено")
@@ -1135,60 +1135,18 @@ class KadArbitrParser:
                         logger.warning(f"⚠️ Пустая ссылка для документа {i}")
                         continue
                     
-                    logger.info(f"🔗 Ссылка на PDF: {pdf_url}")
-                    logger.info(f"📄 Название документа: {doc_title}")
+                        logger.info(f"🔗 Ссылка на PDF: {pdf_url}")
+                        logger.info(f"📄 Название документа: {doc_title}")
                     
-                    # ПРОСТОЕ СКАЧИВАНИЕ: Открываем ссылку в новой вкладке
-                    logger.info(f"🌐 Открытие ссылки документа {i} в новой вкладке...")
-                    
-                    # Сохраняем текущее окно (со списком документов)
-                    case_window = self.driver.current_window_handle
-                    logger.info(f"📍 Окно со списком документов: {case_window}")
-                    
-                    # Открываем новую вкладку для документа
-                    self.driver.execute_script("window.open('');")
-                    time.sleep(1)
-                    
-                    # Переключаемся на новую вкладку документа
-                    doc_window = self.driver.window_handles[-1]
-                    self.driver.switch_to.window(doc_window)
-                    logger.info(f"✅ Переключились на вкладку документа: {doc_window}")
-                    
-                    # Загружаем страницу документа
-                    logger.info(f"🌐 Загружаем страницу документа {i}: {pdf_url}")
-                    self.driver.get(pdf_url)
-                    
-                    # Ждем скачивания файла
-                    logger.info("⏳ Ожидание скачивания файла (5 сек)...")
-                    time.sleep(5)
-                    
-                    logger.info(f"✅ Документ {i} должен быть скачан")
-                    
-                    # Закрываем вкладку документа и возвращаемся к списку документов
-                    logger.info("🔙 Закрываем вкладку документа и возвращаемся к списку...")
-                    self.driver.close()
-                    self.driver.switch_to.window(case_window)
-                    logger.info("✅ Вернулись к списку документов")
-                    
-                    # Небольшая пауза между скачиваниями
-                    time.sleep(1)
+                        # Новая логика больше не скачивает файлы здесь
+                        # Этот метод оставлен для совместимости и больше не должен вызываться
+                        pass
                     
                 except Exception as e:
                     logger.error(f"❌ Ошибка обработки документа {i}: {e}")
                     continue
             
-            # Перемещаем скачанные файлы в целевую папку
-            logger.info("📁 Перемещение скачанных файлов...")
-            downloads_dir = get_downloads_directory()
-            target_dir = self.files_dir  # Используем правильный путь к папке files
-            
-            moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
-            downloaded_files.extend(moved_files)
-            
-            # Итоговая статистика
-            logger.info(f"📊 ИТОГИ СКАЧИВАНИЯ:")
-            logger.info(f"📄 Всего документов найдено: {max_documents}")
-            logger.info(f"✅ Успешно скачано: {len(moved_files)}")
+            # Новая логика: никаких перемещений, метод устарел
             
         except KeyboardInterrupt:
             logger.info("🛑 Получен сигнал завершения (Ctrl+C) во время скачивания файлов")
@@ -1205,7 +1163,7 @@ class KadArbitrParser:
         return True
     
     def parse_case(self, case_number):
-        """Основная функция парсинга дела - НОВЫЙ АЛГОРИТМ"""
+        """Основная функция парсинга дела - НОВЫЙ АЛГОРИТМ (устарело для скачивания)."""
         # Настраиваем обработчики сигналов если еще не настроены
         self._setup_signal_handlers()
         
@@ -1387,52 +1345,12 @@ class KadArbitrParser:
                         logger.info(f"🔗 [TAB] Ссылка на документ {i}: {pdf_url}")
                         logger.info(f"📄 [TAB] Название документа {i}: {doc_title}")
                         
-                        # ПРОСТОЕ СКАЧИВАНИЕ: Открываем ссылку в новой вкладке
-                        logger.info(f"🌐 [TAB] Открытие ссылки документа {i} в новой вкладке...")
-                        
-                        # Сохраняем текущее окно (со списком документов)
-                        case_window = self.driver.current_window_handle
-                        logger.info(f"📍 [TAB] Окно со списком документов: {case_window}")
-                        
-                        # Открываем новую вкладку для документа
-                        self.driver.execute_script("window.open('');")
-                        time.sleep(1)
-                        
-                        # Переключаемся на новую вкладку документа
-                        doc_window = self.driver.window_handles[-1]
-                        self.driver.switch_to.window(doc_window)
-                        logger.info(f"✅ [TAB] Переключились на вкладку документа: {doc_window}")
-                        
-                        # Загружаем страницу документа
-                        logger.info(f"🌐 [TAB] Загружаем страницу документа {i}: {pdf_url}")
-                        self.driver.get(pdf_url)
-                        
-                        # Ждем скачивания файла
-                        logger.info("⏳ [TAB] Ожидание скачивания файла (5 сек)...")
-                        time.sleep(5)
-                        
-                        logger.info(f"✅ [TAB] Документ {i} должен быть скачан")
-                        
-                        # Закрываем вкладку документа и возвращаемся к списку документов
-                        logger.info("🔙 [TAB] Закрываем вкладку документа и возвращаемся к списку...")
-                        self.driver.close()
-                        self.driver.switch_to.window(case_window)
-                        logger.info("✅ [TAB] Вернулись к списку документов")
-                        
-                        # Небольшая пауза между документами
-                        time.sleep(1)
+                        # Новая логика: в этом методе ранее шло скачивание, теперь ничего не делаем
+                        pass
                         
                     except Exception as e:
                         logger.error(f"❌ [TAB] Ошибка обработки документа {i}: {e}")
                         continue
-                
-                # Перемещаем скачанные файлы в целевую папку
-                logger.info("📁 [TAB] Перемещение скачанных файлов...")
-                downloads_dir = get_downloads_directory()
-                target_dir = self.files_dir  # Используем правильный путь к папке files
-                
-                moved_files = move_downloaded_files(downloads_dir, target_dir, case_number)
-                downloaded_files.extend(moved_files)
                 
                 # Закрываем вкладку дела и возвращаемся к оригинальному окну
                 logger.info("🔙 [TAB] Закрываем вкладку дела...")
@@ -1451,8 +1369,8 @@ class KadArbitrParser:
             
             
             
-            logger.info(f"✅ Обработка завершена. Скачано файлов: {len(downloaded_files)}")
-            return downloaded_files
+            logger.info(f"✅ Обработка завершена. Скачивание файлов отключено")
+            return []
             
         except KeyboardInterrupt:
             logger.info("🛑 Получен сигнал завершения (Ctrl+C)")
@@ -1476,6 +1394,118 @@ class KadArbitrParser:
             # СБРОС ФЛАГА ОБРАБОТКИ
             self.is_processing = False
             logger.info("🏁 ПАРСИНГ ЗАВЕРШЕН - WebDriver ОТКЛЮЧЕН - ФЛАГ СБРОШЕН")
+
+    def collect_document_links(self, case_number):
+        """Собирает ссылки на PDF документы без скачивания.
+
+        Возвращает список словарей: {
+            "name": "Document #N",
+            "url": "https://kad.arbitr.ru/Kad/PdfDocument/...",
+            "date": None | "YYYY-MM-DD",
+            "source": "kad.arbitr.ru"
+        }
+        """
+        self._setup_signal_handlers()
+        if self.is_processing:
+            logger.error("🛑 ПАРСЕР УЖЕ РАБОТАЕТ! Повторный запуск заблокирован!")
+            return []
+        if hasattr(self, '_force_stop') and self._force_stop:
+            logger.warning("🛑 ПАРСЕР ПРИНУДИТЕЛЬНО ОСТАНОВЛЕН - новый парсинг заблокирован")
+            return []
+
+        self.is_processing = True
+        links = []
+        try:
+            logger.info(f"🚀 НАЧАЛО СБОРА ССЫЛОК: {case_number}")
+            # Инициализация драйвера
+            if not self.init_driver():
+                logger.error("❌ Не удалось инициализировать WebDriver")
+                return []
+
+            # Ищем дело
+            case_links = self.search_case(case_number)
+            if not case_links:
+                logger.error("❌ Дела не найдены")
+                return []
+
+            case_url, case_text = case_links[0]
+            logger.info(f"🔄 Обработка дела: {case_text}")
+            logger.info(f"🔗 URL дела: {case_url}")
+
+            # Открываем дело в новой вкладке
+            original_window = self.driver.current_window_handle
+            self.driver.execute_script("window.open('');")
+            time.sleep(1)
+            new_window = self.driver.window_handles[-1]
+            self.driver.switch_to.window(new_window)
+            self.driver.get(case_url)
+            time.sleep(3)
+
+            # Открываем вкладку Электронное дело
+            try:
+                electronic_tab = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, 
+                        "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div > div > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text"))
+                )
+                electronic_tab.click()
+                time.sleep(2)
+            except Exception as e:
+                logger.error(f"❌ Не удалось открыть вкладку 'Электронное дело': {e}")
+                return []
+
+            # Ждем список документов
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#chrono_ed_content > ul"))
+                )
+            except TimeoutException:
+                logger.warning("❌ Список документов не загрузился")
+                return []
+
+            # Собираем элементы документов
+            document_elements = self.driver.find_elements(By.CSS_SELECTOR, "#chrono_ed_content > ul > li")
+            total_documents = len(document_elements)
+            logger.info(f"📄 Найдено документов: {total_documents}")
+
+            for i, doc_element in enumerate(document_elements, 1):
+                try:
+                    a_el = doc_element.find_element(By.CSS_SELECTOR, "a")
+                    pdf_url = a_el.get_attribute('href')
+                    title = a_el.text.strip() or f"Document #{i}"
+                    # Пытаемся извлечь дату из URL/названия
+                    date_match = re.search(r"(20\d{2}-\d{2}-\d{2})", pdf_url or "") or re.search(r"(20\d{2}-\d{2}-\d{2})", title)
+                    date_val = date_match.group(1) if date_match else None
+                    if pdf_url:
+                        links.append({
+                            "name": f"Document #{i}",
+                            "url": pdf_url,
+                            "date": date_val,
+                            "source": "kad.arbitr.ru"
+                        })
+                except Exception as e:
+                    logger.debug(f"Пропуск элемента документа: {e}")
+                    continue
+
+            # Закрываем вкладку дела
+            try:
+                self.driver.close()
+                self.driver.switch_to.window(original_window)
+            except Exception:
+                pass
+
+            logger.info(f"✅ Ссылок собрано: {len(links)}")
+            return links
+        except Exception as e:
+            logger.error(f"❌ Ошибка сбора ссылок: {e}")
+            return []
+        finally:
+            try:
+                if self.driver:
+                    self.driver.quit()
+                self.driver = None
+            except Exception:
+                pass
+            self.is_processing = False
     
     def get_downloaded_files(self):
         """Возвращает список скачанных файлов с полными путями"""
