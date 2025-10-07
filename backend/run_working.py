@@ -86,14 +86,14 @@ if __name__ == "__main__":
             sys.exit(1)
     
     print("🚀 Запуск backend сервиса парсера kad.arbitr.ru")
-    print("📱 API: http://127.0.0.1:8000")
-    print("📋 Docs: http://127.0.0.1:8000/docs")
+    print("📱 API: http://0.0.0.0:8000")
+    print("📋 Docs: http://0.0.0.0:8000/docs")
     print("⏹️  Ctrl+C для остановки")
     
     try:
         uvicorn.run(
             app,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=8000,
             reload=False,
             log_level="info",

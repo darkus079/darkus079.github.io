@@ -44,7 +44,7 @@ def check_port_available(port):
     """Проверка доступности порта"""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('localhost', port))
+            s.bind(('0.0.0.0', port))
             return True
     except OSError:
         return False
@@ -193,8 +193,8 @@ def start_backend():
         import uvicorn
         
         print("Backend сервис запущен")
-        print("API доступен по адресу: http://127.0.0.1:8000")
-        print("Документация API: http://127.0.0.1:8000/docs")
+        print("API доступен по адресу: http://0.0.0.0:8000")
+        print("Документация API: http://0.0.0.0:8000/docs")
         print("Для остановки нажмите Ctrl+C")
         
         # Устанавливаем флаг запуска
@@ -206,7 +206,7 @@ def start_backend():
             try:
                 uvicorn.run(
                     app,
-                    host="127.0.0.1",
+                    host="0.0.0.0",
                     port=8000,
                     reload=False,
                     log_level="info",

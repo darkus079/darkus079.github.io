@@ -5,7 +5,7 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = 'http://127.0.0.1:8000';
+    this.baseUrl = 'http://91.224.87.134:8000';
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
