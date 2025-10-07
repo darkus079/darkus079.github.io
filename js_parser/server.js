@@ -211,7 +211,7 @@ app.get('/api/doc-links', async (req, res) => {
     return res.status(400).json({ message: 'Не указан номер дела' });
   }
   try {
-    const backendResponse = await fetch(`http://91.224.87.134:8000/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
+    const backendResponse = await fetch(`https://parskad.containerapps.ru/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
     const data = await backendResponse.json();
     res.json(data);
   } catch (error) {
@@ -222,7 +222,7 @@ app.get('/api/doc-links', async (req, res) => {
 
 app.get('/api/cases', async (req, res) => {
   try {
-    const backendResponse = await fetch('http://91.224.87.134:8000/api/cases');
+    const backendResponse = await fetch('https://parskad.containerapps.ru/api/cases');
     const data = await backendResponse.json();
     res.json(data);
   } catch (error) {
