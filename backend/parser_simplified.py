@@ -1436,13 +1436,78 @@ class KadArbitrParser:
             self.driver.get(case_url)
             time.sleep(3)
 
-            # Открываем вкладку Электронное дело
+            # Открываем вкладку Электронное дело (надежный поиск и клик)
             try:
-                electronic_tab = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, 
-                        "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div > div > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text"))
-                )
-                electronic_tab.click()
+                # Дожидаемся готовности документа
+                for _ in range(10):
+                    try:
+                        ready = self.driver.execute_script("return document.readyState")
+                        if ready == "complete":
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.3)
+
+                selectors = [
+                    # Полный селектор, предоставленный пользователем
+                    "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div.b-case-chrono-header > div > div:nth-child(2) > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text",
+                    # Ранее используемый селектор (на случай другой вёрстки)
+                    "#main-column > div.b-case-card-content.js-case-card-content > div > div.b-case-chrono > div > div > div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text",
+                    # Упрощённый селектор по классу
+                    "div.b-case-chrono-button.js-case-chrono-button.js-case-chrono-button--ed > div.b-case-chrono-button-text",
+                ]
+
+                clicked = False
+
+                # Пробуем CSS селекторы
+                for css in selectors:
+                    try:
+                        el = WebDriverWait(self.driver, 6).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, css))
+                        )
+                        # Скроллим и ждём кликабельность
+                        try:
+                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", el)
+                        except Exception:
+                            pass
+                        el = WebDriverWait(self.driver, 4).until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, css))
+                        )
+                        try:
+                            el.click()
+                        except Exception:
+                            # JS click как резерв, если обычный клик не удался (например, out of bounds)
+                            self.driver.execute_script("arguments[0].click();", el)
+                        clicked = True
+                        break
+                    except Exception:
+                        continue
+
+                # Пробуем XPath по тексту, если CSS не сработали
+                if not clicked:
+                    try:
+                        xpath = "//div[contains(@class,'b-case-chrono-button-text')][contains(., 'Электронное дело')]"
+                        el = WebDriverWait(self.driver, 6).until(
+                            EC.presence_of_element_located((By.XPATH, xpath))
+                        )
+                        try:
+                            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", el)
+                        except Exception:
+                            pass
+                        el = WebDriverWait(self.driver, 4).until(
+                            EC.element_to_be_clickable((By.XPATH, xpath))
+                        )
+                        try:
+                            el.click()
+                        except Exception:
+                            self.driver.execute_script("arguments[0].click();", el)
+                        clicked = True
+                    except Exception:
+                        clicked = False
+
+                if not clicked:
+                    raise TimeoutException("Кнопка 'Электронное дело' не найдена или недоступна")
+
                 time.sleep(2)
             except Exception as e:
                 logger.error(f"❌ Не удалось открыть вкладку 'Электронное дело': {e}")
