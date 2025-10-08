@@ -19,7 +19,7 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
 const CONFIG_PATH = path.join(__dirname, 'public', 'backend.config.json');
-let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || 'http://91.224.87.134:8000';
+let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || '91.224.87.134:8000';
 
 // Загрузка конфигурации backend
 try {
