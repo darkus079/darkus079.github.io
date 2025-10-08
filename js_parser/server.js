@@ -19,7 +19,7 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
 const CONFIG_PATH = path.join(__dirname, 'public', 'backend.config.json');
-let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || '91.224.87.134:8000';
+let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || 'http://localhost:8000';
 
 // Загрузка конфигурации backend
 try {
@@ -29,6 +29,11 @@ try {
       BACKEND_BASE_URL = cfg.backendBaseUrl.trim().replace(/\/$/, '');
     }
   }
+  // Нормализация: добавляем схему при отсутствии и убираем хвостовой слэш
+  if (!/^https?:\/\//i.test(BACKEND_BASE_URL)) {
+    BACKEND_BASE_URL = `http://${BACKEND_BASE_URL}`;
+  }
+  BACKEND_BASE_URL = BACKEND_BASE_URL.replace(/\/$/, '');
   console.log(`⚙️  BACKEND_BASE_URL: ${BACKEND_BASE_URL}`);
 } catch (e) {
   console.warn('⚠️ Не удалось загрузить backend.config.json, используем дефолт:', e.message);

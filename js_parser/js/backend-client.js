@@ -5,7 +5,7 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = 'http://localhost:8000';
+    this.baseUrl = this.normalizeBaseUrl('http://localhost:8000');
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
@@ -16,6 +16,18 @@ class BackendClient {
     // Пытаемся загрузить конфиг из публичного файла
     this.loadConfig();
   }
+  normalizeBaseUrl(url) {
+    try {
+      let u = (url || '').trim();
+      if (!/^https?:\/\//i.test(u)) {
+        u = `http://${u}`;
+      }
+      return u.replace(/\/$/, '');
+    } catch (_) {
+      return 'http://localhost:8000';
+    }
+  }
+
 
   /**
    * Основной метод парсинга дела через backend
@@ -86,7 +98,7 @@ class BackendClient {
       if (resp.ok) {
         const cfg = await resp.json();
         if (cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
-          this.baseUrl = cfg.backendBaseUrl.trim().replace(/\/$/, '');
+          this.baseUrl = this.normalizeBaseUrl(cfg.backendBaseUrl);
           this.log('⚙️ Конфиг загружен', 'info', `BASE: ${this.baseUrl}`);
         }
       }
