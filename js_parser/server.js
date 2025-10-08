@@ -5,7 +5,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const KadArbitrParser = require('./src/parser/KadArbitrParser');
-const fetch = require('node-fetch');
+const fetch = global.fetch || require('node-fetch');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,13 +19,13 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
 const CONFIG_PATH = path.join(__dirname, 'public', 'backend.config.json');
-let BACKEND_BASE_URL = 'http://localhost:8000';
+let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || 'http://localhost:8000';
 
 // Загрузка конфигурации backend
 try {
   if (fs.existsSync(CONFIG_PATH)) {
     const cfg = fs.readJsonSync(CONFIG_PATH);
-    if (cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
+    if (!process.env.BACKEND_BASE_URL && cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
       BACKEND_BASE_URL = cfg.backendBaseUrl.trim().replace(/\/$/, '');
     }
   }
