@@ -5,7 +5,7 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = '';
+    this.baseUrl = this.normalizeBaseUrl('http://91.224.87.134:8000/');
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
@@ -13,8 +13,8 @@ class BackendClient {
     this.statusCheckInterval = null;
     this.currentCase = '';
 
-    // Загружаем конфиг из публичного файла и сохраняем промис готовности
-    this.configReady = this.loadConfig();
+    // Конфиг не используется, адрес зашит явно
+    this.configReady = Promise.resolve();
   }
   normalizeBaseUrl(url) {
     try {
@@ -93,31 +93,10 @@ class BackendClient {
     }
   }
 
-  async loadConfig() {
-    try {
-      const resp = await fetch('/backend.config.json', { cache: 'no-store' });
-      if (resp.ok) {
-        const cfg = await resp.json();
-        if (cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
-          this.baseUrl = this.normalizeBaseUrl(cfg.backendBaseUrl);
-          this.log('⚙️ Конфиг загружен', 'info', `BASE: ${this.baseUrl}`);
-        }
-      }
-    } catch (e) {
-      // Молча оставляем дефолтный URL
-    }
-    if (!this.baseUrl) {
-      throw new Error('Не задан адрес backend. Укажите backendBaseUrl в backend.config.json');
-    }
-  }
+  async loadConfig() { return; }
   
   async ensureConfig() {
-    if (this.configReady) {
-      await this.configReady;
-    }
-    if (!this.baseUrl) {
-      throw new Error('Адрес backend не настроен. Проверьте backend.config.json');
-    }
+    return;
   }
 
   /**

@@ -18,29 +18,11 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
-const CONFIG_PATH = path.join(__dirname, 'public', 'backend.config.json');
-let BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || '';
+let BACKEND_BASE_URL = 'http://91.224.87.134:8000';
 
-// Загрузка конфигурации backend
-try {
-  if (!BACKEND_BASE_URL && fs.existsSync(CONFIG_PATH)) {
-    const cfg = fs.readJsonSync(CONFIG_PATH);
-    if (!process.env.BACKEND_BASE_URL && cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
-      BACKEND_BASE_URL = cfg.backendBaseUrl.trim().replace(/\/$/, '');
-    }
-  }
-  // Нормализация: добавляем схему при отсутствии и убираем хвостовой слэш
-  if (BACKEND_BASE_URL && !/^https?:\/\//i.test(BACKEND_BASE_URL)) {
-    BACKEND_BASE_URL = `http://${BACKEND_BASE_URL}`;
-  }
-  BACKEND_BASE_URL = BACKEND_BASE_URL ? BACKEND_BASE_URL.replace(/\/$/, '') : '';
-  if (!BACKEND_BASE_URL) {
-    throw new Error('Не задан адрес backend. Укажите BACKEND_BASE_URL или backendBaseUrl в backend.config.json');
-  }
-  console.log(`⚙️  BACKEND_BASE_URL: ${BACKEND_BASE_URL}`);
-} catch (e) {
-  console.warn('⚠️ Не удалось загрузить backend.config.json, используем дефолт:', e.message);
-}
+// Настраиваем базовый URL (нормализация)
+BACKEND_BASE_URL = BACKEND_BASE_URL.replace(/\/$/, '');
+console.log(`⚙️  BACKEND_BASE_URL: ${BACKEND_BASE_URL}`);
 
 // Глобальные переменные
 let parser = null;
