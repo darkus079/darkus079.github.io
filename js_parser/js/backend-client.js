@@ -5,13 +5,16 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = 'http://127.0.0.1:8000';
+    this.baseUrl = 'http://localhost:8000';
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
     this.logCallback = null;
     this.statusCheckInterval = null;
     this.currentCase = '';
+
+    // Пытаемся загрузить конфиг из публичного файла
+    this.loadConfig();
   }
 
   /**
@@ -74,6 +77,21 @@ class BackendClient {
     } finally {
       this.isProcessing = false;
       this.stopStatusMonitoring();
+    }
+  }
+
+  async loadConfig() {
+    try {
+      const resp = await fetch('/backend.config.json', { cache: 'no-store' });
+      if (resp.ok) {
+        const cfg = await resp.json();
+        if (cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
+          this.baseUrl = cfg.backendBaseUrl.trim().replace(/\/$/, '');
+          this.log('⚙️ Конфиг загружен', 'info', `BASE: ${this.baseUrl}`);
+        }
+      }
+    } catch (e) {
+      // Молча оставляем дефолтный URL
     }
   }
 

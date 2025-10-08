@@ -5,6 +5,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const KadArbitrParser = require('./src/parser/KadArbitrParser');
+const fetch = require('node-fetch');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,21 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
+const CONFIG_PATH = path.join(__dirname, 'public', 'backend.config.json');
+let BACKEND_BASE_URL = 'http://localhost:8000';
+
+// Загрузка конфигурации backend
+try {
+  if (fs.existsSync(CONFIG_PATH)) {
+    const cfg = fs.readJsonSync(CONFIG_PATH);
+    if (cfg && typeof cfg.backendBaseUrl === 'string' && cfg.backendBaseUrl.trim()) {
+      BACKEND_BASE_URL = cfg.backendBaseUrl.trim().replace(/\/$/, '');
+    }
+  }
+  console.log(`⚙️  BACKEND_BASE_URL: ${BACKEND_BASE_URL}`);
+} catch (e) {
+  console.warn('⚠️ Не удалось загрузить backend.config.json, используем дефолт:', e.message);
+}
 
 // Глобальные переменные
 let parser = null;
@@ -211,7 +227,7 @@ app.get('/api/doc-links', async (req, res) => {
     return res.status(400).json({ message: 'Не указан номер дела' });
   }
   try {
-    const backendResponse = await fetch(`http://localhost:8000/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/doc-links?case=${encodeURIComponent(caseNumber)}`);
     const data = await backendResponse.json();
     res.json(data);
   } catch (error) {
@@ -222,7 +238,7 @@ app.get('/api/doc-links', async (req, res) => {
 
 app.get('/api/cases', async (req, res) => {
   try {
-    const backendResponse = await fetch('http://localhost:8000/api/cases');
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/cases`);
     const data = await backendResponse.json();
     res.json(data);
   } catch (error) {
