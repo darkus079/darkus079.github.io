@@ -206,6 +206,71 @@ app.get('/api/health-proxy', async (req, res) => {
   }
 });
 
+// Прокси: запуск парсинга
+app.post('/api/parse-proxy', async (req, res) => {
+  try {
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_number: req.body.case_number })
+    });
+    const data = await backendResponse.json();
+    res.status(backendResponse.status).json(data);
+  } catch (error) {
+    console.error('Ошибка parse-proxy:', error);
+    res.status(502).json({ success: false, message: error.message });
+  }
+});
+
+// Прокси: статус
+app.get('/api/status-proxy', async (req, res) => {
+  try {
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/status`);
+    const data = await backendResponse.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка status-proxy:', error);
+    res.status(502).json({ error: error.message });
+  }
+});
+
+// Прокси: ссылки
+app.get('/api/links-proxy', async (req, res) => {
+  try {
+    const caseNumber = req.query.case;
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/links?case=${encodeURIComponent(caseNumber)}`);
+    const data = await backendResponse.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка links-proxy:', error);
+    res.status(502).json({ error: error.message });
+  }
+});
+
+// Прокси: очистка
+app.post('/api/clear-proxy', async (req, res) => {
+  try {
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/clear`, { method: 'POST' });
+    const data = await backendResponse.json();
+    res.status(backendResponse.status).json(data);
+  } catch (error) {
+    console.error('Ошибка clear-proxy:', error);
+    res.status(502).json({ error: error.message });
+  }
+});
+
+// Прокси: история
+app.get('/api/history-proxy', async (req, res) => {
+  try {
+    const backendResponse = await fetch(`${BACKEND_BASE_URL}/api/history`);
+    const data = await backendResponse.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка history-proxy:', error);
+    res.status(502).json({ error: error.message });
+  }
+});
+
 app.post('/api/clear', async (req, res) => {
   if (isProcessing) {
     return res.status(429).json({

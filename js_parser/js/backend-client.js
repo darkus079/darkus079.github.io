@@ -39,15 +39,20 @@ class BackendClient {
       this.log('📡 Отправка запроса на backend...', 'info');
       if (progressCallback) progressCallback('Отправка запроса на backend...');
 
-      const response = await fetch(`${this.baseUrl}/api/parse`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          case_number: caseNumber
-        })
-      });
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/parse`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ case_number: caseNumber })
+        });
+      } catch (_) {
+        response = await fetch(`/api/parse-proxy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ case_number: caseNumber })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -136,7 +141,12 @@ class BackendClient {
    */
   async checkStatus() {
     try {
-      const response = await fetch(`${this.baseUrl}/api/status`);
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/status`);
+      } catch (_) {
+        response = await fetch(`/api/status-proxy`);
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -239,7 +249,12 @@ class BackendClient {
    */
   async getLinks(caseNumber) {
     try {
-      const response = await fetch(`${this.baseUrl}/api/links?case=${encodeURIComponent(caseNumber)}`);
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/links?case=${encodeURIComponent(caseNumber)}`);
+      } catch (_) {
+        response = await fetch(`/api/links-proxy?case=${encodeURIComponent(caseNumber)}`);
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -305,9 +320,12 @@ class BackendClient {
     try {
       this.log('🗑️ Очистка файлов на сервере...', 'info');
       
-      const response = await fetch(`${this.baseUrl}/api/clear`, {
-        method: 'POST'
-      });
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/clear`, { method: 'POST' });
+      } catch (_) {
+        response = await fetch(`/api/clear-proxy`, { method: 'POST' });
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -329,7 +347,12 @@ class BackendClient {
    */
   async getHistory() {
     try {
-      const response = await fetch(`${this.baseUrl}/api/history`);
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/history`);
+      } catch (_) {
+        response = await fetch(`/api/history-proxy`);
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
