@@ -87,10 +87,14 @@ class BackendClient {
     try {
       this.log('🔍 Проверка доступности backend...', 'info');
       
-      const response = await fetch(`${this.baseUrl}/api/health`, {
-        method: 'GET',
-        timeout: 5000
-      });
+      // Сначала пробуем прямой вызов
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/health`, { method: 'GET' });
+      } catch (directErr) {
+        // Fallback через прокси сервера (устраняет Mixed Content/CORS)
+        response = await fetch(`/api/health-proxy`, { method: 'GET' });
+      }
 
       if (!response.ok) {
         throw new Error(`Backend недоступен: HTTP ${response.status}`);

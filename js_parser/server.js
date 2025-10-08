@@ -194,6 +194,18 @@ app.get('/api/file-info/:filename', (req, res) => {
   });
 });
 
+// Прокси: проверка здоровья backend (решает Mixed Content/CORS в браузере)
+app.get('/api/health-proxy', async (req, res) => {
+  try {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/health`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Ошибка health-proxy:', error);
+    res.status(502).json({ status: 'error', error: error.message });
+  }
+});
+
 app.post('/api/clear', async (req, res) => {
   if (isProcessing) {
     return res.status(429).json({
