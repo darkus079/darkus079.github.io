@@ -528,14 +528,14 @@ if __name__ == "__main__":
     os.makedirs("templates", exist_ok=True)
     
     print("🚀 Запуск backend сервиса парсера kad.arbitr.ru")
-    print("📱 API доступен по адресу: http://127.0.0.1:8000")
-    print("📋 Документация API: http://127.0.0.1:8000/docs")
+    print("📱 API доступен по адресу: http://0.0.0.0:8000")
+    print("📋 Документация API: http://0.0.0.0:8000/docs")
     print("⏹️  Для остановки нажмите Ctrl+C")
     
     try:
         uvicorn.run(
             app, 
-            host="127.0.0.1", 
+            host="0.0.0.0", 
             port=8000, 
             reload=False,
             log_level="info",
