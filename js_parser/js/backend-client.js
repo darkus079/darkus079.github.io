@@ -5,27 +5,13 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = this.normalizeBaseUrl('http://91.224.87.134:8000/');
+    this.baseUrl = 'http://91.224.87.134:8000';
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
     this.logCallback = null;
     this.statusCheckInterval = null;
     this.currentCase = '';
-
-    // Конфиг не используется, адрес зашит явно
-    this.configReady = Promise.resolve();
-  }
-  normalizeBaseUrl(url) {
-    try {
-      let u = (url || '').trim();
-      if (!/^https?:\/\//i.test(u)) {
-        u = `http://${u}`;
-      }
-      return u.replace(/\/$/, '');
-    } catch (_) {
-      return '';
-    }
   }
 
 
@@ -33,7 +19,6 @@ class BackendClient {
    * Основной метод парсинга дела через backend
    */
   async parseCase(caseNumber, progressCallback, logCallback) {
-    await this.ensureConfig();
     if (this.isProcessing) {
       throw new Error('Парсинг уже выполняется! Повторный запуск заблокирован!');
     }
@@ -93,17 +78,12 @@ class BackendClient {
     }
   }
 
-  async loadConfig() { return; }
-  
-  async ensureConfig() {
-    return;
-  }
+  // Конфиг не используется
 
   /**
    * Проверка доступности backend
    */
   async checkBackendHealth() {
-    await this.ensureConfig();
     try {
       this.log('🔍 Проверка доступности backend...', 'info');
       
@@ -151,7 +131,6 @@ class BackendClient {
    * Проверка текущего статуса парсинга
    */
   async checkStatus() {
-    await this.ensureConfig();
     try {
       const response = await fetch(`${this.baseUrl}/api/status`);
       
@@ -242,7 +221,6 @@ class BackendClient {
    * Получение списка файлов
    */
   async getFilesList() {
-    await this.ensureConfig();
     try {
       // Поддержка старого вызова: теперь возвращаем ссылки
       return await this.getLinks(this.currentCase);
@@ -256,7 +234,6 @@ class BackendClient {
    * Получение ссылок на документы для дела
    */
   async getLinks(caseNumber) {
-    await this.ensureConfig();
     try {
       const response = await fetch(`${this.baseUrl}/api/links?case=${encodeURIComponent(caseNumber)}`);
       if (!response.ok) {
@@ -321,7 +298,6 @@ class BackendClient {
    * Очистка файлов на сервере
    */
   async clearFiles() {
-    await this.ensureConfig();
     try {
       this.log('🗑️ Очистка файлов на сервере...', 'info');
       
@@ -348,7 +324,6 @@ class BackendClient {
    * Получение истории парсинга
    */
   async getHistory() {
-    await this.ensureConfig();
     try {
       const response = await fetch(`${this.baseUrl}/api/history`);
       
