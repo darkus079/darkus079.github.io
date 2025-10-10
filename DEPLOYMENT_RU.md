@@ -6,7 +6,7 @@
 
 ### 1. Архитектура и взаимодействие Frontend/Backend
 
-- Frontend размещается отдельно на GitHub Pages и обращается к Backend по публичному IP `http://91.224.87.134:8000`.
+- Frontend размещается отдельно на GitHub Pages и обращается к Backend по публичному IP `https://parskad.ru`.
 - CORS на Backend уже настроен на `https://darkus079.github.io`.
 - Основные эндпоинты Backend (FastAPI):
   - `POST /api/parse` — поставить в очередь сбор ссылок по номеру дела
@@ -90,8 +90,8 @@ uvicorn backend_service:app --host 0.0.0.0 --port 8000
 Проверьте из локальной машины:
 
 ```bash
-curl http://91.224.87.134:8000/api/health
-# Откройте в браузере: http://91.224.87.134:8000/docs
+curl https://parskad.ru/api/health
+# Откройте в браузере: https://parskad.ru/docs
 ```
 
 Остановите Ctrl+C и переходите к настройке автозапуска.
@@ -154,15 +154,15 @@ journalctl -u kad-backend.service -f --no-pager
 ### 12. Проверка доступности снаружи
 
 ```bash
-curl http://91.224.87.134:8000/api/health
-curl "http://91.224.87.134:8000/api/links?case=А81-8566/2025" --get
+curl https://parskad.ru/api/health
+curl "https://parskad.ru/api/links?case=А81-8566/2025" --get
 ```
 
-Откройте документацию API: `http://91.224.87.134:8000/docs`.
+Откройте документацию API: `https://parskad.ru/docs`.
 
 ### 13. Настройка Frontend
 
-- Frontend развёрнут на GitHub Pages и обращается к Backend по `http://91.224.87.134:8000`.
+- Frontend развёрнут на GitHub Pages и обращается к Backend по `https://parskad.ru`.
 - В репозитории установлен базовый URL во `js_parser/js/backend-client.js`.
 - CORS на Backend уже разрешает `https://darkus079.github.io`.
 
@@ -196,7 +196,7 @@ sudo systemctl status kad-backend.service --no-pager
   - `webdriver-manager` скачает совместимый драйвер автоматически при первом запуске
 - Ошибки CORS в браузере:
   - Проверьте, что обращение идёт с `https://darkus079.github.io`
-  - Убедитесь, что Backend работает по `http://91.224.87.134:8000`
+  - Убедитесь, что Backend работает по `https://parskad.ru`
 - Высокая нагрузка/очередь:
   - По умолчанию `--workers 1` (из-за последовательной логики парсинга и общей очереди)
   - Увеличение числа воркеров потребует пересмотра очереди/синхронизации
@@ -204,9 +204,9 @@ sudo systemctl status kad-backend.service --no-pager
 ### 17. Изменения в коде, влияющие на деплой
 
 - Backend переведён на биндинг `0.0.0.0:8000` (вместо `127.0.0.1`).
-- Frontend (клиент) настроен на `http://91.224.87.134:8000`.
+- Frontend (клиент) настроен на `https://parskad.ru`.
 - Эндпоинт здоровья: `GET /api/health`; диагностика: `GET /diagnostics`.
 
-Готово: после выполнения шагов из этого файла backend будет доступен по `http://91.224.87.134:8000`, а фронтенд GitHub Pages — по своему домену, с корректным CORS и маршрутом взаимодействия.
+Готово: после выполнения шагов из этого файла backend будет доступен по `https://parskad.ru`, а фронтенд GitHub Pages — по своему домену, с корректным CORS и маршрутом взаимодействия.
 
 

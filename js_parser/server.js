@@ -18,7 +18,7 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 const FILES_DIR = path.join(__dirname, 'files');
-let BACKEND_BASE_URL = 'http://91.224.87.134:8000';
+let BACKEND_BASE_URL = 'https://parskad.ru';
 
 // Настраиваем базовый URL (нормализация)
 BACKEND_BASE_URL = BACKEND_BASE_URL.replace(/\/$/, '');

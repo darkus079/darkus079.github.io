@@ -5,7 +5,7 @@
 
 class BackendClient {
   constructor() {
-    this.baseUrl = 'http://91.224.87.134:8000';
+    this.baseUrl = 'https://parskad.ru';
     this.isProcessing = false;
     this.downloadedFiles = [];
     this.progressCallback = null;
