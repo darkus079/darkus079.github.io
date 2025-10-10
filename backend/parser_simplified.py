@@ -57,6 +57,8 @@ class KadArbitrParser:
         self.downloads_dir = self._get_downloads_directory()
         self.is_processing = False  # Флаг для предотвращения повторных запусков
         self._force_stop = False  # Флаг принудительной остановки
+        self.headless = False  # Режим без окна (для VM)
+        self._profile_dir = None  # Уникальная папка профиля Chrome
         self._ensure_files_directory()
         self._signal_handlers_setup = False
         logger.info(f"📁 Папка для скачивания: {self.downloads_dir}")
@@ -180,6 +182,8 @@ class KadArbitrParser:
             
             # Используем новые настройки для автоматического скачивания PDF
             options = create_undetected_chrome_options()
+            # Безопасные настройки для Linux headless и уникального профиля
+            self._apply_linux_headless_and_profile(options)
             
             # Создаем драйвер
             self.driver = uc.Chrome(options=options, version_main=None)
@@ -238,6 +242,8 @@ class KadArbitrParser:
             
             # Используем новые настройки для автоматического скачивания PDF
             options = create_standard_chrome_options()
+            # Безопасные настройки для Linux headless и уникального профиля
+            self._apply_linux_headless_and_profile(options)
             
             # Получаем путь к драйверу
             driver_path = ChromeDriverManager().install()
@@ -305,12 +311,17 @@ class KadArbitrParser:
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('--disable-blink-features=AutomationControlled')
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option('useAutomationExtension', False)
+            # Экспериментальные опции оставляем только на Windows
+            if platform.system().lower() == 'windows':
+                options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                options.add_experimental_option('useAutomationExtension', False)
             
             # Настройки окна и производительности
             options.add_argument('--window-size=1920,1080')
             options.add_argument('--disable-gpu')
+
+            # Безопасные настройки для Linux headless и уникального профиля
+            self._apply_linux_headless_and_profile(options)
             
             # Человекоподобные предпочтения
             prefs = {
@@ -360,12 +371,17 @@ class KadArbitrParser:
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('--disable-blink-features=AutomationControlled')
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option('useAutomationExtension', False)
+            # Экспериментальные опции оставляем только на Windows
+            if platform.system().lower() == 'windows':
+                options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                options.add_experimental_option('useAutomationExtension', False)
             
             # Настройки окна
             options.add_argument('--window-size=1920,1080')
             options.add_argument('--disable-gpu')
+
+            # Безопасные настройки для Linux headless и уникального профиля
+            self._apply_linux_headless_and_profile(options)
             
             # Человекоподобные предпочтения
             prefs = {
@@ -414,9 +430,11 @@ class KadArbitrParser:
             except:
                 # Если не получилось, пробуем headless режим
                 logger.warning("⚠️ Переходим на headless режим...")
-                options.add_argument('--headless')
+                options.add_argument('--headless=new')
+                options.add_argument('--window-size=1920,1080')
                 self.driver = webdriver.Chrome(options=options)
                 logger.warning("✅ Минимальная инициализация в headless режиме")
+                self.headless = True
                 return True
             
         except Exception as e:
@@ -554,6 +572,10 @@ class KadArbitrParser:
     def _human_mouse_move(self, element=None, random_movement=True):
         """Человекоподобное движение мыши"""
         try:
+            # В headless режиме движение мыши часто приводит к out of bounds.
+            if getattr(self, 'headless', False):
+                logger.debug("🖱️ Пропуск движения мыши в headless режиме")
+                return
             actions = ActionChains(self.driver)
             
             if random_movement:
@@ -577,6 +599,39 @@ class KadArbitrParser:
             
         except Exception as e:
             logger.warning(f"Ошибка движения мыши: {e}")
+
+    def _make_unique_profile_dirs(self):
+        """Создает уникальные директории профиля и кэша для Chrome, возвращает (profile_dir, cache_dir)."""
+        try:
+            base_tmp = tempfile.gettempdir()
+            profiles_root = os.path.join(base_tmp, "kad_parser_profiles")
+            os.makedirs(profiles_root, exist_ok=True)
+            profile_dir = tempfile.mkdtemp(prefix="profile_", dir=profiles_root)
+            cache_dir = tempfile.mkdtemp(prefix="cache_", dir=profiles_root)
+            self._profile_dir = profile_dir
+            return profile_dir, cache_dir
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось создать уникальный профиль: {e}")
+            return None, None
+
+    def _apply_linux_headless_and_profile(self, options):
+        """Применяет headless и уникальный user-data-dir для Linux окружения."""
+        try:
+            if platform.system().lower() == 'linux':
+                # Всегда headless на VM без GUI
+                options.add_argument('--headless=new')
+                options.add_argument('--window-size=1920,1080')
+                options.add_argument('--disable-gpu')
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+                profile_dir, cache_dir = self._make_unique_profile_dirs()
+                if profile_dir:
+                    options.add_argument(f'--user-data-dir={profile_dir}')
+                if cache_dir:
+                    options.add_argument(f'--disk-cache-dir={cache_dir}')
+                self.headless = True
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка применения headless/profile: {e}")
     
     def _simulate_human_reading(self, seconds_range=(2, 5)):
         """Имитация чтения страницы пользователем"""
@@ -827,6 +882,12 @@ class KadArbitrParser:
                 # Человекоподобный ввод номера дела
                 logger.info("⌨️ Вводим номер дела человекоподобно...")
                 self._human_type(search_input, case_number, delay_range=(0.08, 0.18))
+                # Логируем фактическое значение из поля
+                try:
+                    typed_value = search_input.get_attribute("value")
+                    logger.info(f"✍️ В поле введено: '{typed_value}'")
+                except Exception as e:
+                    logger.debug(f"Не удалось прочитать value: {e}")
                 
                 # ЭТАП 6: Поиск и нажатие кнопки поиска
                 logger.info("🔍 Ищем кнопку поиска...")
@@ -883,8 +944,9 @@ class KadArbitrParser:
                     self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", search_button)
                     self._human_delay(1, 2, "после прокрутки к кнопке")
                     
-                    # Движение мыши к кнопке
-                    self._human_mouse_move(search_button)
+                    # Движение мыши к кнопке (пропустим в headless)
+                    if not self.headless:
+                        self._human_mouse_move(search_button)
                     
                     # Несколько попыток клика
                     click_success = False
@@ -897,7 +959,11 @@ class KadArbitrParser:
                                 search_button.click()
                             elif attempt == 1:
                                 # Вторая попытка - ActionChains
-                                ActionChains(self.driver).move_to_element(search_button).click().perform()
+                                if not self.headless:
+                                    ActionChains(self.driver).move_to_element(search_button).click().perform()
+                                else:
+                                    # В headless частый out of bounds — используем JS
+                                    self.driver.execute_script("arguments[0].click();", search_button)
                             else:
                                 # Третья попытка - JavaScript
                                 self.driver.execute_script("arguments[0].click();", search_button)
@@ -958,9 +1024,29 @@ class KadArbitrParser:
                 
                 # ЭТАП 8: Извлечение результатов
                 logger.info("📊 Извлекаем результаты поиска...")
+                # Сохраняем дампы для дебага
+                try:
+                    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+                    os.makedirs(logs_dir, exist_ok=True)
+                    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    html_path = os.path.join(logs_dir, f'search_results_{ts}.html')
+                    with open(html_path, 'w', encoding='utf-8') as f:
+                        f.write(self.driver.page_source)
+                    # Скриншоты в headless могут быть полезны
+                    try:
+                        screenshot_path = os.path.join(logs_dir, f'search_results_{ts}.png')
+                        self.driver.save_screenshot(screenshot_path)
+                    except Exception as _:
+                        pass
+                    logger.info(f"🧾 Дампы сохранены: {html_path}")
+                except Exception as dump_err:
+                    logger.debug(f"Не удалось сохранить дампы: {dump_err}")
                 
                 # Имитируем изучение результатов
-                self._simulate_human_reading((2, 4))
+                if not self.headless:
+                    self._simulate_human_reading((2, 4))
+                else:
+                    self._human_delay(1, 2, "пауза перед извлечением результатов")
                 
                 case_links = []
                 result_selectors = [
@@ -1435,6 +1521,17 @@ class KadArbitrParser:
             # Переходим по ссылке дела в ТЕКУЩЕМ окне (без открытий вкладок)
             self.driver.get(case_url)
             time.sleep(3)
+
+            # Дамп страницы дела для дебага
+            try:
+                logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+                os.makedirs(logs_dir, exist_ok=True)
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                html_path = os.path.join(logs_dir, f'case_page_{ts}.html')
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(self.driver.page_source)
+            except Exception:
+                pass
 
             # Открываем вкладку Электронное дело (надежный поиск и клик)
             try:

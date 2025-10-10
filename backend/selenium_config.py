@@ -10,26 +10,40 @@ import undetected_chromedriver as uc
 
 def get_downloads_directory():
     """
-    Определяет папку для скачивания файлов
-    Пробует D:\\DOWNLOADS, затем C:\\Users\\gugu\\Downloads
+    Определяет папку для скачивания файлов с учетом ОС.
+    На Windows пробует D:\\DOWNLOADS и стандартные Загрузки.
+    На Linux/macOS — ~/Downloads, затем /tmp/kad_downloads.
     """
-    # Список папок для скачивания в порядке приоритета
-    download_dirs = [
-        "D:\\DOWNLOADS",
-        "C:\\Users\\gugu\\Downloads"
-    ]
-    
-    for download_dir in download_dirs:
-        if os.path.exists(download_dir):
-            return download_dir
-    
-    # Если ни одна папка не найдена, создаем D:\DOWNLOADS
-    fallback_dir = "D:\\DOWNLOADS"
-    try:
-        os.makedirs(fallback_dir, exist_ok=True)
-        return fallback_dir
-    except Exception:
-        # Если не удалось создать, используем текущую папку
+    system = platform.system().lower()
+    if system == "windows":
+        download_dirs = [
+            "D:\\DOWNLOADS",
+            os.path.join(os.path.expanduser("~"), "Downloads"),
+            os.path.join(os.path.expanduser("~"), "Загрузки"),
+        ]
+        for download_dir in download_dirs:
+            if os.path.exists(download_dir):
+                return download_dir
+        # fallback для Windows
+        fallback_dir = "D:\\DOWNLOADS"
+        try:
+            os.makedirs(fallback_dir, exist_ok=True)
+            return fallback_dir
+        except Exception:
+            return os.getcwd()
+    else:
+        # Linux / macOS
+        download_dirs = [
+            os.path.join(os.path.expanduser("~"), "Downloads"),
+            "/tmp/kad_downloads",
+        ]
+        for download_dir in download_dirs:
+            try:
+                if not os.path.exists(download_dir):
+                    os.makedirs(download_dir, exist_ok=True)
+                return download_dir
+            except Exception:
+                continue
         return os.getcwd()
 
 def move_downloaded_files(downloads_dir, target_dir, case_number):
@@ -171,15 +185,15 @@ def configure_chrome_options_for_pdf_download(options, downloads_dir):
     for arg in pdf_download_args:
         options.add_argument(arg)
     
-    # Настройки для отключения встроенного просмотрщика PDF
-    options.add_experimental_option("excludeSwitches", [
-        "enable-automation",
-        "enable-logging",
-        "disable-popup-blocking"
-    ])
-    
-    # Отключаем автоматизацию
-    options.add_experimental_option('useAutomationExtension', False)
+    # Экспериментальные опции: в некоторых версиях Chrome на Linux они могут вызывать ошибку.
+    # Применяем только на Windows.
+    if platform.system().lower() == "windows":
+        options.add_experimental_option("excludeSwitches", [
+            "enable-automation",
+            "enable-logging",
+            "disable-popup-blocking"
+        ])
+        options.add_experimental_option('useAutomationExtension', False)
 
 def create_undetected_chrome_options():
     """
@@ -198,8 +212,10 @@ def create_undetected_chrome_options():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
+    # Применяем experimental options только на Windows
+    if platform.system().lower() == "windows":
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
     
     # Настройки для отключения встроенного просмотрщика PDF
     options.add_argument('--disable-plugins-discovery')
@@ -245,8 +261,10 @@ def create_standard_chrome_options():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
+    # Применяем experimental options только на Windows
+    if platform.system().lower() == "windows":
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
     
     # Настройки для отключения встроенного просмотрщика PDF
     options.add_argument('--disable-plugins-discovery')
