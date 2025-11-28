@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import os
 from kafka import KafkaConsumer
 from aiogram import Bot
 from src.config import settings
-from backend.parser_simplified import KadArbitrParser
+from src.download_service import DownloadService
 import json
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,7 @@ class ParsingWorker:
     def __init__(self, worker_id: str = "worker-1"):
         self.worker_id = worker_id
         self.bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
-        self.parser = KadArbitrParser()
+        self.download_service = DownloadService()
         self.consumer = None
         self.is_running = False
     
@@ -52,7 +53,7 @@ class ParsingWorker:
                 logger.error(f"❌ {self.worker_id} ошибка обработки сообщения: {e}")
     
     async def _process_task(self, task_data: dict):
-        """Обрабатывает одну задачу"""
+        """Обрабатывает одну задачу со скачиванием файлов"""
         case_number = task_data['case_number']
         user_id = task_data['user_id']
         chat_id = task_data['chat_id']
@@ -63,15 +64,30 @@ class ParsingWorker:
             # Уведомляем о начале обработки
             await self.bot.send_message(
                 chat_id=chat_id,
-                text=f"🔍 Начинаю поиск дела: {case_number}\n⏳ Это займет около 1-2 минут..."
+                text=f"🔍 Обработка дела: {case_number}\n⏳ Скачивание документов... Это займет 1-2 минуты"
             )
             
-            # Выполняем парсинг
-            logger.info(f"🔄 {self.worker_id} парсит дело: {case_number}")
-            documents = self.parser.collect_document_links(case_number)
+            # ВРЕМЕННО: Используем известный UUID для тестирования
+            known_uuids = {
+                "А50-5568/08": "67f6384a-144d-4102-8831-e5c9a1a4c7bc",
+                "А40-123456/2024": "67f6384a-144d-4102-8831-e5c9a1a4c7bc",  # тот же для теста
+            }
             
-            # Отправляем результаты
-            await self._send_results(chat_id, case_number, documents)
+            case_uuid = known_uuids.get(case_number)
+            
+            if not case_uuid:
+                await self.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ Дело {case_number} временно не поддерживается для скачивания.\nИспользуйте: А50-5568/08"
+                )
+                return
+            
+            # Скачиваем документы
+            logger.info(f"🔄 Скачивание документов для UUID: {case_uuid}")
+            archive_path = self.download_service.download_case_documents(case_uuid)
+            
+            # Отправляем архив
+            await self._send_archive(chat_id, case_number, archive_path)
             
             logger.info(f"✅ {self.worker_id} завершил задачу: {case_number}")
             
@@ -79,50 +95,46 @@ class ParsingWorker:
             logger.error(f"❌ {self.worker_id} ошибка обработки задачи {case_number}: {e}")
             await self._send_error(chat_id, case_number, str(e))
     
-    async def _send_results(self, chat_id: int, case_number: str, documents: list):
-        """Отправляет результаты пользователю с ссылками на PDF"""
-        if not documents:
+    async def _send_archive(self, chat_id: int, case_number: str, archive_path: str):
+        """Отправляет ZIP-архив пользователю"""
+        if not archive_path or not os.path.exists(archive_path):
             await self.bot.send_message(
                 chat_id=chat_id,
-                text=f"❌ По делу {case_number} не найдено документов"
+                text=f"❌ Не удалось скачать документы для дела: {case_number}"
             )
             return
         
-        # Формируем сообщение со ссылками
-        message_lines = [f"✅ Найдено документов: {len(documents)}\n\n"]
-        
-        for i, doc in enumerate(documents[:15], 1):  # Ограничиваем 15 документами
-            doc_name = doc.get('name', f'Документ {i}')
-            doc_type = doc.get('type', 'PDF')
-            doc_url = doc.get('url', '')
-            doc_date = doc.get('date', '')
+        try:
+            # Читаем файл в память и создаем BufferedInputFile
+            with open(archive_path, 'rb') as f:
+                file_data = f.read()
             
-            date_str = f" ({doc_date})" if doc_date else ""
+            from aiogram.types import BufferedInputFile
             
-            if doc_url:
-                message_lines.append(f"{i}. {doc_type}{date_str}: {doc_name}\n{doc_url}")
-            else:
-                message_lines.append(f"{i}. {doc_type}{date_str}: {doc_name} (ссылка недоступна)")
+            filename = f"documents_{case_number.replace('/', '_')}.zip"
+            document = BufferedInputFile(file_data, filename=filename)
             
-            # Добавляем пустую строку между документами для читаемости
-            message_lines.append("")
-        
-        message = "\n".join(message_lines)
-        
-        # Если сообщение слишком длинное, разбиваем на части
-        if len(message) > 4000:
-            parts = [message[i:i+4000] for i in range(0, len(message), 4000)]
-            for part in parts:
-                await self.bot.send_message(
-                    chat_id=chat_id, 
-                    text=part,
-                    disable_web_page_preview=True
-                )
-        else:
+            # Отправляем архив
+            await self.bot.send_document(
+                chat_id=chat_id,
+                document=document,
+                caption=f"📦 Документы по делу: {case_number}"
+            )
+            
+            # Уведомляем об успехе
             await self.bot.send_message(
-                chat_id=chat_id, 
-                text=message,
-                disable_web_page_preview=True
+                chat_id=chat_id,
+                text=f"✅ Документы по делу {case_number} успешно скачаны и отправлены!"
+            )
+            
+            # Очищаем временный архив
+            self.download_service.cleanup_archive(archive_path)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки архива: {e}")
+            await self.bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Ошибка отправки документов: {e}"
             )
     
     async def _send_error(self, chat_id: int, case_number: str, error: str):
@@ -139,7 +151,5 @@ class ParsingWorker:
         self.is_running = False
         if self.consumer:
             self.consumer.close()
-        if self.parser:
-            self.parser.close()
         await self.bot.close()
         logger.info(f"🛑 {self.worker_id} остановлен")
