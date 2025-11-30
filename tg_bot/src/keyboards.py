@@ -1,18 +1,18 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
-def get_main_keyboard():
-    """Основная клавиатура бота"""
-    builder = ReplyKeyboardBuilder()
+# def get_main_keyboard():
+#     """Основная клавиатура бота"""
+#     builder = ReplyKeyboardBuilder()
     
-    builder.add(
-        KeyboardButton(text="🔍 Поиск дела"),
-        KeyboardButton(text="ℹ️ Помощь"),
-        KeyboardButton(text="📊 Статистика")
-    )
+#     builder.add(
+#         KeyboardButton(text="🔍 Поиск дела"),
+#         KeyboardButton(text="ℹ️ Помощь"),
+#         KeyboardButton(text="📊 Статистика")
+#     )
     
-    builder.adjust(2)
-    return builder.as_markup(resize_keyboard=True)
+#     builder.adjust(2)
+#     return builder.as_markup(resize_keyboard=True)
 
 def get_search_keyboard():
     """Клавиатура для поиска"""
