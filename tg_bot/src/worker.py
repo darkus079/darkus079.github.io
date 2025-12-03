@@ -372,6 +372,17 @@ class ParsingWorker:
             driver.get("https://kad.arbitr.ru/")
             time.sleep(3)
 
+            try:
+                close_button = driver.find_element(
+                    By.CSS_SELECTOR,
+                    "a.b-promo_notification-popup-close.js-promo_notification-popup-close"
+                )
+                close_button.click()
+                logger.debug("✅ Основное всплывающее окно закрыто")
+                time.sleep(1)
+            except Exception as e:
+                logger.debug(f"Основное всплывающее окно не найдено: {e}")
+
             # Закрыть всплывающее окно "Устаревшая версия браузера"
             try:
                 close_button = driver.find_element(By.XPATH, "//div[@class='b-browsers-popup-close']")

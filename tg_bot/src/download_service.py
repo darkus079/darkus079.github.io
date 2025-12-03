@@ -6,6 +6,9 @@ import logging
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoAlertPresentException, TimeoutException, NoSuchElementException
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,7 @@ class DownloadService:
         chrome_options = Options()
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-notifications")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_experimental_option("useAutomationExtension", False)
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -46,6 +50,8 @@ class DownloadService:
 
         driver = webdriver.Chrome(options=chrome_options)
         driver.execute_script("delete navigator.__proto__.webdriver")
+
+        self._close_initial_popups(driver)
 
         archive_path = os.path.join(output_dir, f"{case_uuid}.zip")
         
@@ -110,3 +116,37 @@ class DownloadService:
                 logger.info(f"🗑️ Удален временный архив: {archive_path}")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка удаления архива: {e}")
+
+    def _close_initial_popups(self, driver):
+        """Закрывает все всплывающие окна при запуске браузера"""
+        try:
+            # Даем время на появление окон
+            time.sleep(3)
+            
+            # 1. Ваше новое всплывающее окно (с вашим CSS-селектором)
+            try:
+                close_button = driver.find_element(
+                    By.CSS_SELECTOR,
+                    "a.b-promo_notification-popup-close.js-promo_notification-popup-close"
+                )
+                close_button.click()
+                logger.info("✅ Основное всплывающее окно закрыто")
+                time.sleep(1)
+            except Exception as e:
+                logger.debug(f"Основное всплывающее окно не найдено: {e}")
+            
+            # 2. Окно "Устаревшая версия браузера" (если есть)
+            try:
+                close_button = driver.find_element(
+                    By.XPATH, 
+                    "//div[@class='b-browsers-popup-close']"
+                )
+                close_button.click()
+                logger.debug("✅ Окно устаревшего браузера закрыто")
+                time.sleep(0.5)
+            except Exception as e:
+                logger.debug(f"Окно устаревшего браузера не найдено: {e}")
+                
+        except Exception as e:
+            logger.warning(f"Ошибка при закрытии всплывающих окон: {e}")
+
