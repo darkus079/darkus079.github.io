@@ -18,7 +18,7 @@ sys.path.insert(0, src_path)
 backend_path = os.path.join(project_root, 'backend')
 sys.path.insert(0, backend_path)
 
-from src.worker import ParsingWorker
+from tg_bot.src.worker import ParsingWorker
 
 async def main():
     logging.basicConfig(
